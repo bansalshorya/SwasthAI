@@ -1,0 +1,201 @@
+export const APP_CONFIG = {
+  app: {
+    name: "SwasthAI",
+    appId: "com.swasthai.app",
+    defaultLanguage: "hi",
+    supportedLanguages: ["hi", "en"],
+    theme: { primary: "#0A5341", accent: "#F4B942", background: "#F4F7F2" },
+  },
+  welcome: {
+    title: { hi: "लक्षण समझें। अगला सही कदम जानें।", en: "Understand your symptoms. Know the next step." },
+    subtitle: {
+      hi: "हिंदी या English में बताइए—आवाज़ से भी। फोटो वैकल्पिक है।",
+      en: "Tell us in Hindi or English—even by voice. A photo is optional.",
+    },
+    startLabel: { hi: "स्वास्थ्य जाँच शुरू करें", en: "Start health screening" },
+    voicePrompt: {
+      hi: "नमस्ते। स्वास्थ्य जाँच शुरू करने के लिए नीचे दिया गया बटन दबाएँ।",
+      en: "Hello. Press the button below to start your health screening.",
+    },
+  },
+  onboarding: [
+    {
+      id: "describe",
+      title: { hi: "पहले अपने लक्षण बताइए", en: "First, describe your symptoms" },
+      subtitle: { hi: "टाइप करें या माइक दबाकर हिंदी में बोलें।", en: "Type, or tap the mic and speak naturally." },
+      voicePrompt: { hi: "पहले अपने लक्षण टाइप करें या बोलकर बताएं।", en: "First, type or speak your symptoms." },
+      image: null,
+    },
+    {
+      id: "context",
+      title: { hi: "कुछ जरूरी सवाल", en: "A few useful questions" },
+      subtitle: { hi: "अवधि और गंभीरता जैसी जानकारी बेहतर जाँच में मदद करती है।", en: "Duration and severity help make the screening more useful." },
+      voicePrompt: { hi: "फिर कुछ छोटे सवालों के जवाब दें।", en: "Then answer a few short questions." },
+      image: null,
+    },
+    {
+      id: "photo_result",
+      title: { hi: "फोटो वैकल्पिक है", en: "A photo is optional" },
+      subtitle: { hi: "दिखने वाली समस्या की फोटो जोड़ें, फिर सुरक्षित अगला कदम पाएँ।", en: "Add a photo of a visible concern, then get safe next-step guidance." },
+      voicePrompt: { hi: "यदि लक्षण दिखाई देता है तो फोटो जोड़ें। यह जरूरी नहीं है।", en: "Add a photo if the symptom is visible. It is not required." },
+      image: null,
+    },
+  ],
+  symptomSuggestions: {
+    hi: ["बुखार", "खाँसी", "सिर दर्द", "पेट दर्द", "त्वचा पर दाने"],
+    en: ["Fever", "Cough", "Headache", "Stomach pain", "Skin rash"],
+  },
+  inspection: {
+    minimumImages: 0,
+    maximumImages: 3,
+    steps: [
+      {
+        id: "symptom_overview",
+        role: "visible_symptom_overview",
+        label: { hi: "समस्या का साफ दृश्य", en: "Clear view of the concern" },
+        subtext: { hi: "अच्छी रोशनी रखें और शरीर का निजी हिस्सा न दिखाएँ।", en: "Use good light and avoid intimate body areas." },
+        voicePrompt: { hi: "दिखने वाली समस्या की साफ फोटो लें।", en: "Take a clear photo of the visible concern." },
+        maxDimension: 1000,
+        quality: 0.84,
+      },
+      {
+        id: "symptom_closeup",
+        role: "visible_symptom_closeup",
+        label: { hi: "पास से फोटो", en: "Closer detail" },
+        subtext: { hi: "कैमरा स्थिर रखें, लेकिन बहुत पास न जाएँ।", en: "Keep the camera steady without getting too close." },
+        voicePrompt: { hi: "अब चाहें तो पास से एक फोटो लें।", en: "You may now add a closer photo." },
+        maxDimension: 1000,
+        quality: 0.86,
+      },
+      {
+        id: "symptom_context",
+        role: "visible_symptom_context",
+        label: { hi: "आसपास का हिस्सा", en: "Surrounding area" },
+        subtext: { hi: "आसपास की त्वचा या सूजन दिखाएँ।", en: "Show nearby skin or swelling for context." },
+        voicePrompt: { hi: "आखिर में आसपास का हिस्सा दिखा सकते हैं।", en: "Finally, you can show the surrounding area." },
+        maxDimension: 1000,
+        quality: 0.82,
+      },
+    ],
+  },
+  questions: [
+    {
+      key: "duration",
+      title: { hi: "ये लक्षण कब से हैं?", en: "How long have you had these symptoms?" },
+      subtitle: { hi: "सबसे नजदीकी अवधि चुनें।", en: "Choose the closest duration." },
+      required: true,
+      options: [
+        { value: "today", label: { hi: "आज शुरू हुए", en: "Started today" } },
+        { value: "one_to_three_days", label: { hi: "1–3 दिन", en: "1–3 days" } },
+        { value: "four_to_seven_days", label: { hi: "4–7 दिन", en: "4–7 days" } },
+        { value: "more_than_week", label: { hi: "एक हफ्ते से ज्यादा", en: "More than a week" } },
+      ],
+    },
+    {
+      key: "severity",
+      title: { hi: "अभी परेशानी कितनी है?", en: "How severe is it right now?" },
+      subtitle: { hi: "अपनी रोज़मर्रा की गतिविधि के आधार पर चुनें।", en: "Consider how much it affects normal activity." },
+      required: true,
+      options: [
+        { value: "mild", label: { hi: "हल्की—काम कर पा रहा/रही हूँ", en: "Mild—I can do normal activities" } },
+        { value: "moderate", label: { hi: "मध्यम—काम प्रभावित है", en: "Moderate—activities are affected" } },
+        { value: "severe", label: { hi: "तेज़—सामान्य काम मुश्किल है", en: "Severe—normal activities are difficult" } },
+      ],
+    },
+    {
+      key: "progression",
+      title: { hi: "लक्षण कैसे बदल रहे हैं?", en: "How are the symptoms changing?" },
+      subtitle: { hi: "पिछले 24 घंटों के बारे में सोचें।", en: "Think about the last 24 hours." },
+      required: true,
+      options: [
+        { value: "improving", label: { hi: "बेहतर हो रहे हैं", en: "Getting better" } },
+        { value: "stable", label: { hi: "लगभग वैसे ही हैं", en: "About the same" } },
+        { value: "worsening", label: { hi: "बढ़ रहे हैं", en: "Getting worse" } },
+      ],
+    },
+    {
+      key: "ageGroup",
+      title: { hi: "किस आयु वर्ग के लिए जाँच है?", en: "Who is this screening for?" },
+      subtitle: { hi: "आयु से जोखिम सलाह बदल सकती है।", en: "Age can change urgency guidance." },
+      required: true,
+      options: [
+        { value: "child", label: { hi: "बच्चा—12 वर्ष से कम", en: "Child—under 12" } },
+        { value: "teen", label: { hi: "किशोर—12 से 17", en: "Teen—12 to 17" } },
+        { value: "adult", label: { hi: "वयस्क—18 से 59", en: "Adult—18 to 59" } },
+        { value: "older_adult", label: { hi: "वरिष्ठ—60 या अधिक", en: "Older adult—60 or above" } },
+      ],
+    },
+  ],
+  ai: {
+    model: "configured-by-secure-backend",
+    persona: {
+      hi: "आप सावधान स्वास्थ्य स्क्रीनिंग सहायक हैं, डॉक्टर नहीं। लक्षण, उत्तर और वैकल्पिक तस्वीरों से केवल संभावित स्थितियाँ और सुरक्षित अगला कदम बताएं।",
+      en: "You are a cautious health-screening assistant, not a doctor. Use symptoms, answers, and optional images only to suggest possible conditions and safe next steps.",
+    },
+    validationRules: {
+      hi: ["फोटो वैकल्पिक है; बिना फोटो के केवल दिए गए लक्षणों पर काम करें।", "इनपुट अपर्याप्त हो तो अनिश्चितता स्पष्ट करें।", "आपातकालीन संकेत मिलें तो riskLevel=emergency रखें।"],
+      en: ["A photo is optional; when absent, use only the reported symptoms.", "State uncertainty when the input is insufficient.", "Set riskLevel=emergency when red flags are present."],
+    },
+    evidenceRules: {
+      hi: ["किसी बीमारी की पुष्टि न करें और प्रतिशत संभावना न दें।", "फोटो से तापमान, दर्द, रक्तचाप या आंतरिक बीमारी का अनुमान न लगाएँ।", "दवा या खुराक न लिखें।"],
+      en: ["Never confirm a diagnosis or provide probability percentages.", "Do not infer temperature, pain, blood pressure, or internal disease from an image.", "Do not prescribe medication or dosage."],
+    },
+    responseSchema: {
+      type: "OBJECT",
+      properties: {
+        isTargetValid: { type: "BOOLEAN" },
+        riskLevel: { type: "STRING", enum: ["low", "moderate", "high", "emergency"] },
+        confidence: { type: "STRING", enum: ["low", "medium", "high"] },
+        summary: { type: "STRING" },
+        possibleConditions: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              name: { type: "STRING" },
+              confidence: { type: "STRING", enum: ["low", "medium", "high"] },
+              reason: { type: "STRING" },
+              commonSymptoms: { type: "ARRAY", items: { type: "STRING" } },
+            },
+            required: ["name", "confidence", "reason", "commonSymptoms"],
+          },
+        },
+        evidence: { type: "ARRAY", items: { type: "STRING" } },
+        imageAssessment: { type: "STRING" },
+        homeCare: { type: "ARRAY", items: { type: "STRING" } },
+        dietPlan: {
+          type: "OBJECT",
+          properties: {
+            eat: { type: "ARRAY", items: { type: "STRING" } },
+            avoid: { type: "ARRAY", items: { type: "STRING" } },
+          },
+          required: ["eat", "avoid"],
+        },
+        monitorSymptoms: { type: "ARRAY", items: { type: "STRING" } },
+        redFlags: { type: "ARRAY", items: { type: "STRING" } },
+        doctorRecommendation: {
+          type: "OBJECT",
+          properties: { specialist: { type: "STRING" }, timeframe: { type: "STRING" } },
+          required: ["specialist", "timeframe"],
+        },
+        disclaimer: { type: "STRING" },
+      },
+      required: ["isTargetValid", "riskLevel", "confidence", "summary", "possibleConditions", "evidence", "imageAssessment", "homeCare", "dietPlan", "monitorSymptoms", "redFlags", "doctorRecommendation", "disclaimer"],
+    },
+  },
+  results: {
+    title: { hi: "आपकी स्वास्थ्य स्क्रीनिंग", en: "Your health screening" },
+    possibleTitle: { hi: "संभावित स्थितियाँ", en: "Possible conditions" },
+    reasonsTitle: { hi: "यह क्यों मेल खा सकता है", en: "Why this may fit" },
+    recommendationsTitle: { hi: "अभी क्या करें", en: "What to do now" },
+    dietTitle: { hi: "खान-पान का सुझाव", en: "Food and hydration" },
+    monitorTitle: { hi: "इन लक्षणों पर नज़र रखें", en: "Symptoms to monitor" },
+    redFlagsTitle: { hi: "तुरंत मदद कब लें", en: "When to get urgent help" },
+    doctorTitle: { hi: "डॉक्टर से सलाह", en: "Professional care" },
+    disclaimer: {
+      hi: "यह AI-सहायता प्राप्त स्वास्थ्य स्क्रीनिंग है, चिकित्सकीय निदान नहीं। इलाज या दवा शुरू करने से पहले योग्य डॉक्टर से सलाह लें।",
+      en: "This is AI-assisted health screening, not a medical diagnosis. Consult a qualified clinician before starting treatment or medication.",
+    },
+  },
+  integrations: { weather: false, geolocation: false, firebase: false, cloudinary: false, notifications: false },
+};

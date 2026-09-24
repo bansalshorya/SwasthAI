@@ -1,0 +1,28 @@
+{
+  "name": "swasthai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:sync": "npm run build && cap sync android"
+  },
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "latest",
+    "@capacitor/camera": "latest",
+    "@capacitor/core": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/android": "latest",
+    "@capacitor/cli": "latest",
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest"
+  }
+}
+

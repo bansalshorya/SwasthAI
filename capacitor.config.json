@@ -1,0 +1,7 @@
+{
+  "appId": "com.swasthai.app",
+  "appName": "SwasthAI",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
+
