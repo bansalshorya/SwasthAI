@@ -44,4 +44,4 @@ Do not expose an AI provider key in client-side environment variables.
 
 ## Medical safety scope
 
-This app is not a medical device and does not confirm disease, provide probability percentages, or prescribe medication. Clinical review, privacy assessment, localization review, security testing, and applicable regulatory work are required before real-world release.
+This application is not a medical device and does not confirm disease, provide probability percentages, or prescribe medication. Clinical review, privacy assessment, localization review, security testing, and applicable regulatory work are required before real-world release.
