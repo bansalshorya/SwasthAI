@@ -1,5 +1,8 @@
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
+import { localizeConditionName, localizeMedicalText, localizeSymptoms } from "./medicalTranslation";
+
+export { localizeConditionName, localizeMedicalText, localizeSymptoms };
 
 function dataUrlPart(dataUrl) {
   const [metadata, data] = dataUrl.split(",", 2);
@@ -172,4 +175,115 @@ export async function runAnalysis(session) {
   const payload = await response.json();
   if (!response.ok) throw new Error(payload?.error?.message ?? `AI request failed (${response.status})`);
   return validateResult(extractResult(payload));
+}
+
+export function hydrateSession(session, targetLanguage) {
+  if (!session) return session;
+  const language = targetLanguage ?? session.language ?? APP_CONFIG.app.defaultLanguage;
+  const isHindi = language === "hi";
+  const existingAnswers = session.inspection?.answers ?? {};
+
+  let symptoms = existingAnswers.symptoms;
+  if (!symptoms && session.result?.possibleConditions?.[0]) {
+    const firstCond = session.result.possibleConditions[0];
+    if (firstCond.commonSymptoms && firstCond.commonSymptoms.length) {
+      symptoms = firstCond.commonSymptoms.join(", ");
+    } else {
+      symptoms = firstCond.name;
+    }
+  }
+
+  const localizedSymptoms = localizeSymptoms(symptoms, language) || (isHindi ? "त्वचा पर दाने, खुजली" : "Rash, itching");
+
+  const inspection = {
+    ...session.inspection,
+    answers: {
+      ...existingAnswers,
+      symptoms: localizedSymptoms,
+    },
+    images: session.inspection?.images ?? [],
+  };
+
+  const syntheticSession = { ...session, language, inspection };
+  const fallback = buildDemoResult(syntheticSession);
+
+  const existingResult = session.result || session.analysis || {};
+  const hasFullGuidance = Boolean(
+    existingResult.homeCare?.length &&
+    existingResult.dietPlan?.eat?.length &&
+    existingResult.monitorSymptoms?.length &&
+    existingResult.redFlags?.length &&
+    existingResult.doctorRecommendation?.specialist
+  );
+
+  const fullResult = hasFullGuidance ? existingResult : {
+    ...fallback,
+    ...existingResult,
+    possibleConditions: (existingResult.possibleConditions && existingResult.possibleConditions.length)
+      ? existingResult.possibleConditions
+      : fallback.possibleConditions,
+    evidence: (existingResult.evidence && existingResult.evidence.length)
+      ? existingResult.evidence
+      : fallback.evidence,
+    imageAssessment: existingResult.imageAssessment || fallback.imageAssessment,
+    homeCare: (existingResult.homeCare && existingResult.homeCare.length)
+      ? existingResult.homeCare
+      : fallback.homeCare,
+    dietPlan: (existingResult.dietPlan?.eat && existingResult.dietPlan.eat.length)
+      ? existingResult.dietPlan
+      : fallback.dietPlan,
+    monitorSymptoms: (existingResult.monitorSymptoms && existingResult.monitorSymptoms.length)
+      ? existingResult.monitorSymptoms
+      : fallback.monitorSymptoms,
+    redFlags: (existingResult.redFlags && existingResult.redFlags.length)
+      ? existingResult.redFlags
+      : fallback.redFlags,
+    doctorRecommendation: existingResult.doctorRecommendation?.specialist
+      ? existingResult.doctorRecommendation
+      : fallback.doctorRecommendation,
+  };
+
+  const localizedConditions = (fullResult.possibleConditions || []).map((c) => ({
+    ...c,
+    name: localizeConditionName(c.name, language),
+    reason: localizeMedicalText(c.reason, language),
+    commonSymptoms: (c.commonSymptoms || []).map((s) => localizeSymptoms(s, language)),
+  }));
+
+  const localizedEvidence = (fullResult.evidence || []).map((e) => localizeMedicalText(e, language));
+  const localizedSummary = localizeMedicalText(fullResult.summary, language);
+  const localizedImageAssessment = localizeMedicalText(fullResult.imageAssessment, language);
+  const localizedHomeCare = (fullResult.homeCare || []).map((h) => localizeMedicalText(h, language));
+  const localizedDietPlan = {
+    eat: (fullResult.dietPlan?.eat || []).map((item) => localizeMedicalText(item, language)),
+    avoid: (fullResult.dietPlan?.avoid || []).map((item) => localizeMedicalText(item, language)),
+  };
+  const localizedMonitorSymptoms = (fullResult.monitorSymptoms || []).map((m) => localizeMedicalText(m, language));
+  const localizedRedFlags = (fullResult.redFlags || []).map((r) => localizeMedicalText(r, language));
+  const localizedDoctorRecommendation = fullResult.doctorRecommendation ? {
+    specialist: localizeMedicalText(fullResult.doctorRecommendation.specialist, language),
+    timeframe: localizeMedicalText(fullResult.doctorRecommendation.timeframe, language),
+  } : fullResult.doctorRecommendation;
+
+  const fullyLocalizedResult = {
+    ...fullResult,
+    summary: localizedSummary,
+    possibleConditions: localizedConditions,
+    evidence: localizedEvidence,
+    imageAssessment: localizedImageAssessment,
+    homeCare: localizedHomeCare,
+    dietPlan: localizedDietPlan,
+    monitorSymptoms: localizedMonitorSymptoms,
+    redFlags: localizedRedFlags,
+    doctorRecommendation: localizedDoctorRecommendation,
+    disclaimer: localize(APP_CONFIG.results.disclaimer, language),
+  };
+
+  return {
+    ...session,
+    language,
+    inspection,
+    analysis: fullyLocalizedResult,
+    result: fullyLocalizedResult,
+  };
 }

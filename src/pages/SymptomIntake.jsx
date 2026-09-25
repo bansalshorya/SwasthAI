@@ -6,6 +6,8 @@ import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import { hasRedFlag } from "../services/redFlags";
 import { listenForSpeech, speechRecognitionSupported } from "../services/speechRecognition";
+import LanguageSwitch from "../components/LanguageSwitch";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function SymptomIntake() {
   const navigate = useNavigate();
@@ -49,7 +51,11 @@ export default function SymptomIntake() {
     <main className="app-screen intake-screen">
       <header className="top-row">
         <button className="icon-button" onClick={() => navigate("/home")} aria-label={copy.back}><ArrowLeft /></button>
-        <div className="step-label">{copy.stepOne}</div>
+        <div className="header-actions">
+          <div className="step-label">{copy.stepOne}</div>
+          <LanguageSwitch />
+          <ThemeToggle />
+        </div>
       </header>
 
       <section className="intake-heading">

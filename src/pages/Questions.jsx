@@ -5,6 +5,8 @@ import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
+import LanguageSwitch from "../components/LanguageSwitch";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function Questions() {
   const navigate = useNavigate();
@@ -33,7 +35,11 @@ export default function Questions() {
     <main className="app-screen question-screen">
       <header className="top-row">
         <button className="icon-button" onClick={back} aria-label={copy.back}><ArrowLeft /></button>
-        <strong>{copy.questionProgress} {index + 1} / {APP_CONFIG.questions.length}</strong>
+        <div className="header-actions">
+          <strong>{copy.questionProgress} {index + 1} / {APP_CONFIG.questions.length}</strong>
+          <LanguageSwitch />
+          <ThemeToggle />
+        </div>
       </header>
       <div className="progress-track"><span style={{ width: `${((index + 1) / APP_CONFIG.questions.length) * 100}%` }} /></div>
       <section className="question-card">

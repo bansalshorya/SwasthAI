@@ -1,9 +1,12 @@
-import { AlertTriangle, Apple, ArrowLeft, CheckCircle2, Eye, HeartPulse, PhoneCall, Stethoscope } from "lucide-react";
+import { AlertTriangle, Apple, ArrowLeft, CheckCircle2, Eye, HeartPulse, Pencil, PhoneCall, Stethoscope } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
+import { hydrateSession } from "../services/aiSkillEngine";
+import LanguageSwitch from "../components/LanguageSwitch";
+import ThemeToggle from "../components/ThemeToggle";
 
 function BulletList({ items = [] }) {
   return <ul>{items.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>;
@@ -13,7 +16,8 @@ export default function Result() {
   const navigate = useNavigate();
   const { language, activeSession, startInspection } = useApp();
   const copy = ui(language);
-  const result = activeSession?.result;
+  const session = activeSession ? hydrateSession(activeSession, language) : null;
+  const result = session?.result;
 
   if (!result) return <main className="center-screen">{copy.resultUnavailable}</main>;
 
@@ -23,13 +27,17 @@ export default function Result() {
   }
 
   const riskLabel = copy[result.riskLevel] ?? result.riskLevel;
+  const reportedSymptoms = session?.inspection?.answers?.symptoms;
 
   return (
     <main className="app-screen result-screen">
       <header className="top-row result-header">
         <button className="icon-button" onClick={() => navigate("/home")} aria-label={copy.home}><ArrowLeft /></button>
         <strong>{localize(APP_CONFIG.results.title, language)}</strong>
-        <span className="header-spacer" />
+        <div className="header-actions">
+          <LanguageSwitch />
+          <ThemeToggle />
+        </div>
       </header>
 
       <section className={`result-hero ${result.riskLevel || "moderate"}`}>
@@ -45,6 +53,23 @@ export default function Result() {
           <span>{copy.confidence}: {copy[result.confidence] ?? result.confidence}</span>
         </div>
       </section>
+
+      {reportedSymptoms && (
+        <div className="result-symptoms-bar">
+          <div className="result-symptoms-text">
+            <strong>{copy.symptomsLabel}:</strong> {reportedSymptoms}
+          </div>
+          <button
+            type="button"
+            className="inline-edit-btn"
+            onClick={() => navigate("/symptoms")}
+            aria-label={copy.editSymptoms}
+            title={copy.editSymptoms}
+          >
+            <Pencil size={14} aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       {(result.riskLevel === "emergency" || result.riskLevel === "high") && <a className="emergency-call compact" href="tel:112"><PhoneCall size={19} />{copy.callNow}</a>}
 
