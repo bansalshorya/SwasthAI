@@ -1,0 +1,19 @@
+{
+  "name": "SwasthAI - AI Health Screening",
+  "short_name": "SwasthAI",
+  "description": "Bilingual AI-assisted health screening with symptom intake, optional photos, and safety-first next steps.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#063529",
+  "theme_color": "#0A5341",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

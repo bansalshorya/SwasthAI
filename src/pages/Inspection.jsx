@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Camera, Check, Images, LockKeyhole, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Camera, Check, Images, Loader2, LockKeyhole, RotateCcw, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import { captureVideoFrame, openCamera, pickFromGallery, stopCamera } from "../services/camera";
+import LanguageSwitch from "../components/LanguageSwitch";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function Inspection() {
   const navigate = useNavigate();
@@ -14,9 +16,11 @@ export default function Inspection() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [index, setIndex] = useState(activeSession?.inspection?.images?.length ?? 0);
-  const [mode, setMode] = useState("choice");
+  const [mode, setMode] = useState("choice"); // "choice" | "camera" | "preview"
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const step = APP_CONFIG.inspection.steps[Math.min(index, APP_CONFIG.inspection.steps.length - 1)];
   const images = activeSession?.inspection?.images ?? [];
 
@@ -33,9 +37,17 @@ export default function Inspection() {
     try {
       streamRef.current = await openCamera(videoRef.current);
       speakText(localize(step.voicePrompt, language));
-    } catch {
+    } catch (err) {
+      stopCamera(streamRef.current);
+      streamRef.current = null;
       setMode("choice");
-      setError(copy.cameraPermission);
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        setError(copy.cameraPermissionDenied || copy.cameraPermission);
+      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+        setError(copy.cameraNotFound || copy.cameraPermission);
+      } else {
+        setError(copy.cameraPermission);
+      }
     }
   }
 
@@ -46,15 +58,26 @@ export default function Inspection() {
   }
 
   function capture() {
-    if (!videoRef.current?.videoWidth) return;
-    setPreview(captureVideoFrame(videoRef.current, step));
-    stopCamera(streamRef.current);
-    streamRef.current = null;
-    setMode("preview");
+    if (!videoRef.current?.videoWidth || isCapturing) return;
+    setIsCapturing(true);
+    try {
+      const frame = captureVideoFrame(videoRef.current, step);
+      if (!frame) throw new Error("Invalid frame capture");
+      setPreview(frame);
+      stopCamera(streamRef.current);
+      streamRef.current = null;
+      setMode("preview");
+    } catch {
+      setError(copy.cameraPermission);
+      setMode("choice");
+    } finally {
+      setIsCapturing(false);
+    }
   }
 
   async function gallery() {
     setError("");
+    setIsProcessing(true);
     try {
       const image = await pickFromGallery(step);
       if (image) {
@@ -63,23 +86,30 @@ export default function Inspection() {
       }
     } catch {
       setError(copy.cameraPermission);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
   function accept() {
-    if (!preview) return;
-    addImage({
-      id: `${activeSession.sessionId}_${step.id}_${Date.now()}`,
-      stepId: step.id,
-      role: step.role,
-      dataUrl: preview,
-      capturedAt: new Date().toISOString(),
-    });
-    setPreview(null);
-    if (index >= APP_CONFIG.inspection.steps.length - 1) navigate("/analysis");
-    else {
-      setIndex((value) => value + 1);
-      setMode("choice");
+    if (!preview || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      addImage({
+        id: `${activeSession.sessionId}_${step.id}_${Date.now()}`,
+        stepId: step.id,
+        role: step.role,
+        dataUrl: preview,
+        capturedAt: new Date().toISOString(),
+      });
+      setPreview(null);
+      if (index >= APP_CONFIG.inspection.steps.length - 1) navigate("/analysis");
+      else {
+        setIndex((value) => value + 1);
+        setMode("choice");
+      }
+    } finally {
+      setIsProcessing(false);
     }
   }
 
@@ -93,7 +123,14 @@ export default function Inspection() {
       </header>
       <div className="camera-guide"><strong>{localize(step.label, language)}</strong><span>{localize(step.subtext, language)}</span></div>
       <footer className="camera-footer single-control">
-        <button className="shutter" onClick={capture} aria-label={copy.usePhoto}><span /></button>
+        <button
+          className="shutter"
+          onClick={capture}
+          disabled={isCapturing}
+          aria-label={isCapturing ? copy.capturingImage : copy.usePhoto}
+        >
+          <span className={isCapturing ? "capturing" : ""} />
+        </button>
       </footer>
     </main>
   );
@@ -108,8 +145,14 @@ export default function Inspection() {
       </header>
       <footer className="camera-footer">
         <div className="two-buttons">
-          <button className="secondary-dark" onClick={startCamera}><RotateCcw size={18} />{copy.retake}</button>
-          <button className="success-button" onClick={accept}><Check size={18} />{copy.usePhoto}</button>
+          <button className="secondary-dark" disabled={isProcessing} onClick={startCamera}>
+            <RotateCcw size={18} />
+            <span>{copy.retake}</span>
+          </button>
+          <button className="success-button" disabled={isProcessing} onClick={accept}>
+            {isProcessing ? <Loader2 size={18} className="spin" /> : <Check size={18} />}
+            <span>{copy.usePhoto}</span>
+          </button>
         </div>
       </footer>
     </main>
@@ -118,9 +161,19 @@ export default function Inspection() {
   return (
     <main className="app-screen photo-screen">
       <header className="top-row">
-        <button className="icon-button" onClick={() => navigate("/questions")} aria-label={copy.back}><ArrowLeft /></button>
-        <div className="step-label">{language === "hi" ? "चरण 3 / 3" : "Step 3 of 3"}</div>
+        <button className="icon-button" onClick={() => navigate("/questions")} aria-label={copy.back}>
+          <ArrowLeft />
+        </button>
+        <div className="header-actions">
+          <div className="step-label" aria-label={copy.stepThreeOfFour}>{copy.stepThreeOfFour}</div>
+          <LanguageSwitch />
+          <ThemeToggle />
+        </div>
       </header>
+
+      <div className="progress-track" aria-hidden="true">
+        <span style={{ width: "75%" }} />
+      </div>
       <section className="photo-heading">
         <div className="section-icon"><Camera size={22} /></div>
         <p className="eyebrow">{copy.optionalPhoto}</p>

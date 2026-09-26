@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { useApp } from "../context/AppContext";
+import LanguageSwitch from "../components/LanguageSwitch";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function Welcome() {
   const navigate = useNavigate();
-  const { language, setLanguage, speakText } = useApp();
+  const { language, speakText } = useApp();
 
   useEffect(() => {
     speakText(localize(APP_CONFIG.welcome.voicePrompt, language));
@@ -14,12 +16,9 @@ export default function Welcome() {
 
   return (
     <main className="welcome-screen">
-      <div className="language-switch" aria-label="Language">
-        {APP_CONFIG.app.supportedLanguages.map((code) => (
-          <button className={language === code ? "active" : ""} key={code} onClick={() => setLanguage(code)}>
-            {code.toUpperCase()}
-          </button>
-        ))}
+      <div className="welcome-top-controls">
+        <LanguageSwitch />
+        <ThemeToggle />
       </div>
       <section className="welcome-copy">
         <div className="brand-mark">+</div>
