@@ -69,12 +69,55 @@ function extractResult(payload) {
 }
 
 function validateResult(result) {
-  const validRisk = ["low", "moderate", "high", "emergency"].includes(result?.riskLevel);
-  const validConfidence = ["low", "medium", "high"].includes(result?.confidence);
-  if (!validRisk || !validConfidence || !Array.isArray(result?.possibleConditions) || !result?.doctorRecommendation) {
-    throw new Error("The screening service returned an incomplete result. Please try again.");
+  if (!result || typeof result !== "object") {
+    throw new Error("The screening service returned an empty result. Please try again.");
   }
-  return result;
+
+  // Normalize riskLevel defensively
+  let riskLevel = String(result.riskLevel || "").toLowerCase();
+  if (riskLevel === "medium") riskLevel = "moderate";
+  if (!["low", "moderate", "high", "emergency"].includes(riskLevel)) {
+    riskLevel = "moderate";
+  }
+
+  // Normalize confidence
+  let confidence = String(result.confidence || "").toLowerCase();
+  if (!["low", "medium", "high"].includes(confidence)) {
+    confidence = "low";
+  }
+
+  // Normalize possibleConditions safely
+  const possibleConditions = Array.isArray(result.possibleConditions)
+    ? result.possibleConditions.map((item) => ({
+        name: item?.name || "Unspecified condition",
+        confidence: item?.confidence || "low",
+        reason: item?.reason || "",
+        commonSymptoms: Array.isArray(item?.commonSymptoms) ? item.commonSymptoms : [],
+      }))
+    : [];
+
+  // Normalize doctorRecommendation safely
+  const doctorRecommendation = {
+    specialist: result.doctorRecommendation?.specialist || "General Physician or Primary Care Doctor",
+    timeframe: result.doctorRecommendation?.timeframe || "Consult a healthcare provider as needed",
+  };
+
+  return {
+    ...result,
+    riskLevel,
+    confidence,
+    possibleConditions,
+    doctorRecommendation,
+    evidence: Array.isArray(result.evidence) ? result.evidence : [],
+    homeCare: Array.isArray(result.homeCare) ? result.homeCare : [],
+    dietPlan: {
+      eat: Array.isArray(result.dietPlan?.eat) ? result.dietPlan.eat : [],
+      avoid: Array.isArray(result.dietPlan?.avoid) ? result.dietPlan.avoid : [],
+    },
+    monitorSymptoms: Array.isArray(result.monitorSymptoms) ? result.monitorSymptoms : [],
+    redFlags: Array.isArray(result.redFlags) ? result.redFlags : [],
+    summary: result.summary || "",
+  };
 }
 
 function demoConditions(symptoms, language) {

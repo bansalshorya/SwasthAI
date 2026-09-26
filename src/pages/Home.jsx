@@ -1,4 +1,21 @@
-import { Activity, ArrowRight, ChevronRight, HeartPulse, LockKeyhole, Mic, Pencil, ShieldCheck, Stethoscope, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  ArrowRight,
+  ArrowUpDown,
+  ClipboardList,
+  HeartPulse,
+  LockKeyhole,
+  Mic,
+  Pencil,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  Stethoscope,
+  Trash2,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
 import { ui } from "../config/uiCopy";
@@ -25,12 +42,113 @@ function formatSessionDate(dateString, lang) {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { language, startInspection, pastSessions, loadPastSession, deleteSession, clearAllSessions } = useApp();
+  const {
+    language,
+    startInspection,
+    pastSessions,
+    loadPastSession,
+    deleteSession,
+    clearAllSessions,
+    isOnline,
+    hasIncompleteSession,
+    activeSession,
+    discardActiveSession,
+    showToast,
+  } = useApp();
   const copy = ui(language);
 
-  function start() {
+  const [showStartNewModal, setShowStartNewModal] = useState(false);
+  const [deleteModalTarget, setDeleteModalTarget] = useState(null); // null | { type: 'single', sessionId: string } | { type: 'all' }
+  const [searchQuery, setSearchQuery] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("all"); // 'all' | 'low' | 'moderate' | 'high' | 'emergency'
+  const [sortOrder, setSortOrder] = useState("newest"); // 'newest' | 'oldest'
+
+  // Keyboard accessibility for modals (Escape key closes)
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setShowStartNewModal(false);
+        setDeleteModalTarget(null);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Filter and sort historical sessions
+  const processedSessions = useMemo(() => {
+    let result = [...pastSessions];
+
+    // 1. Text Search across condition name and symptoms
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      result = result.filter((session) => {
+        const rawCondition = session.result?.possibleConditions?.[0]?.name || "";
+        const condition = localizeConditionName(rawCondition, language) || "";
+        const rawSymptoms = session.inspection?.answers?.symptoms || "";
+        const symptoms = localizeSymptoms(rawSymptoms, language) || "";
+        return condition.toLowerCase().includes(query) || symptoms.toLowerCase().includes(query);
+      });
+    }
+
+    // 2. Severity Filter
+    if (severityFilter !== "all") {
+      result = result.filter((session) => {
+        const risk = (session.result?.riskLevel || "moderate").toLowerCase();
+        if (severityFilter === "moderate") {
+          return risk === "moderate" || risk === "medium";
+        }
+        return risk === severityFilter;
+      });
+    }
+
+    // 3. Sort Order
+    result.sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime() || 0;
+      const timeB = new Date(b.createdAt).getTime() || 0;
+      return sortOrder === "oldest" ? timeA - timeB : timeB - timeA;
+    });
+
+    return result;
+  }, [pastSessions, searchQuery, severityFilter, sortOrder, language]);
+
+  function handleInitiateScreening() {
+    if (!isOnline) {
+      showToast(copy.offlineAlert, "error");
+      return;
+    }
+    if (hasIncompleteSession) {
+      setShowStartNewModal(true);
+      return;
+    }
     startInspection();
     navigate("/symptoms");
+  }
+
+  function confirmStartNew() {
+    setShowStartNewModal(false);
+    discardActiveSession();
+    startInspection();
+    navigate("/symptoms");
+  }
+
+  function resumeIncomplete() {
+    const answers = activeSession?.inspection?.answers;
+    const symptoms = answers?.symptoms?.trim();
+    if (!symptoms) {
+      navigate("/symptoms");
+      return;
+    }
+    const questionsAnswered = APP_CONFIG.questions.every((q) => answers[q.key]);
+    if (questionsAnswered) {
+      navigate("/inspection");
+    } else {
+      navigate("/questions");
+    }
+  }
+
+  function discardIncomplete() {
+    discardActiveSession();
   }
 
   function openPastSession(session) {
@@ -44,21 +162,30 @@ export default function Home() {
     navigate("/symptoms");
   }
 
-  function handleDeleteSession(event, sessionId) {
+  function requestDeleteSession(event, sessionId) {
     event.stopPropagation();
-    if (window.confirm(copy.confirmDeleteSession)) {
-      deleteSession(sessionId);
-    }
+    setDeleteModalTarget({ type: "single", sessionId });
   }
 
-  function handleClearAll() {
-    if (window.confirm(copy.confirmClearAll)) {
+  function requestClearAll() {
+    setDeleteModalTarget({ type: "all" });
+  }
+
+  function confirmDelete() {
+    if (!deleteModalTarget) return;
+    if (deleteModalTarget.type === "all") {
       clearAllSessions();
+      showToast(copy.toastAllCleared, "success");
+    } else if (deleteModalTarget.sessionId) {
+      deleteSession(deleteModalTarget.sessionId);
+      showToast(copy.toastScreeningDeleted, "success");
     }
+    setDeleteModalTarget(null);
   }
 
   const count = pastSessions.length;
   const countLabel = count === 1 ? copy.screeningSingular : copy.screeningPlural;
+  const isFilteringActive = searchQuery.trim() !== "" || severityFilter !== "all";
 
   return (
     <main className="app-screen home-screen">
@@ -67,7 +194,7 @@ export default function Home() {
           <button
             type="button"
             className="brand-mark small"
-            onClick={start}
+            onClick={handleInitiateScreening}
             aria-label={copy.newScreeningTooltip}
             title={copy.newScreeningTooltip}
           >
@@ -84,8 +211,56 @@ export default function Home() {
         </div>
       </header>
 
+      {!isOnline && (
+        <div className="offline-banner" role="status" aria-live="polite">
+          <WifiOff size={18} className="offline-banner-icon" aria-hidden="true" />
+          <div className="offline-banner-text">
+            <strong>{copy.offlineBannerTitle}</strong>
+            <p>{copy.offlineBannerDesc}</p>
+          </div>
+        </div>
+      )}
+
       <div className="home-dashboard-layout">
         <div className="home-primary-col">
+          {hasIncompleteSession && (
+            <section className="resume-screening-card" aria-label={copy.resumeTitle}>
+              <div className="resume-card-header">
+                <div className="resume-icon-badge" aria-hidden="true">
+                  <Activity size={18} />
+                </div>
+                <div>
+                  <h3 className="resume-title">{copy.resumeTitle}</h3>
+                  <p className="resume-desc">{copy.resumeDesc}</p>
+                </div>
+              </div>
+              {activeSession?.inspection?.answers?.symptoms && (
+                <div className="resume-symptom-preview">
+                  <strong>{copy.symptomsLabel}:</strong>{" "}
+                  <span>{activeSession.inspection.answers.symptoms}</span>
+                </div>
+              )}
+              <div className="resume-actions">
+                <button
+                  type="button"
+                  className="primary-button small"
+                  onClick={resumeIncomplete}
+                >
+                  <span>{copy.resumeBtn}</span>
+                  <ArrowRight size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button small"
+                  onClick={discardIncomplete}
+                >
+                  <RotateCcw size={14} />
+                  <span>{copy.startOverBtn}</span>
+                </button>
+              </div>
+            </section>
+          )}
+
           <section className="hero-card">
             <div className="hero-medical-icons" aria-hidden="true">
               <div className="hero-orb primary">
@@ -100,7 +275,11 @@ export default function Home() {
             </p>
             <h1>{copy.howAreYouFeeling}</h1>
             <p>{copy.howAreYouFeelingHint}</p>
-            <button className="accent-button hero-cta" onClick={start}>
+            <button
+              type="button"
+              className="accent-button hero-cta"
+              onClick={handleInitiateScreening}
+            >
               <span>{copy.startInspection}</span>
               <ArrowRight size={18} className="cta-arrow" />
             </button>
@@ -145,7 +324,7 @@ export default function Home() {
                 <button
                   type="button"
                   className="clear-all-btn"
-                  onClick={handleClearAll}
+                  onClick={requestClearAll}
                   aria-label={copy.clearAll}
                 >
                   {copy.clearAll}
@@ -153,20 +332,116 @@ export default function Home() {
               )}
             </div>
 
+            {count > 0 && (
+              <div className="history-toolbar">
+                <div className="history-search-wrap">
+                  <Search size={15} className="history-search-icon" aria-hidden="true" />
+                  <input
+                    type="search"
+                    className="history-search-input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={copy.searchPlaceholder}
+                    aria-label={copy.searchAriaLabel}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="history-clear-search-btn"
+                      onClick={() => setSearchQuery("")}
+                      aria-label={copy.clearFilters}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="history-filters-bar">
+                  <div className="severity-filter-chips" role="radiogroup" aria-label={copy.filterBySeverity}>
+                    {[
+                      { key: "all", label: copy.filterAll },
+                      { key: "low", label: copy.low, dotClass: "low" },
+                      { key: "moderate", label: copy.moderate, dotClass: "moderate" },
+                      { key: "high", label: copy.high, dotClass: "high" },
+                      { key: "emergency", label: copy.emergency, dotClass: "emergency" },
+                    ].map((pill) => {
+                      const isSelected = severityFilter === pill.key;
+                      return (
+                        <button
+                          key={pill.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          className={`filter-chip ${isSelected ? "active" : ""}`}
+                          onClick={() => setSeverityFilter(pill.key)}
+                        >
+                          {pill.dotClass && <span className={`severity-dot ${pill.dotClass}`} aria-hidden="true" />}
+                          <span>{pill.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="history-sort-btn"
+                    onClick={() => setSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"))}
+                    aria-label={`${copy.sortBy}: ${sortOrder === "newest" ? copy.sortNewest : copy.sortOldest}`}
+                    title={`${copy.sortBy}: ${sortOrder === "newest" ? copy.sortNewest : copy.sortOldest}`}
+                  >
+                    <ArrowUpDown size={13} aria-hidden="true" />
+                    <span>{sortOrder === "newest" ? copy.sortNewest : copy.sortOldest}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {!pastSessions.length ? (
               <div className="empty-history-state">
-                <p className="muted">{copy.noInspections}</p>
+                <div className="empty-icon-bubble" aria-hidden="true">
+                  <ClipboardList size={34} />
+                </div>
+                <h3>{copy.noScreeningsTitle}</h3>
+                <p>{copy.noScreeningsDesc}</p>
+                <button
+                  type="button"
+                  className="secondary-button empty-cta"
+                  onClick={handleInitiateScreening}
+                >
+                  <span>{copy.startScreeningCta}</span>
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            ) : !processedSessions.length ? (
+              <div className="empty-history-state search-empty">
+                <div className="empty-icon-bubble" aria-hidden="true">
+                  <Search size={30} />
+                </div>
+                <h3>{copy.noSearchResultsTitle}</h3>
+                <p>{copy.noSearchResultsDesc}</p>
+                <button
+                  type="button"
+                  className="secondary-button empty-cta"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSeverityFilter("all");
+                  }}
+                >
+                  <RotateCcw size={14} />
+                  <span>{copy.clearFilters}</span>
+                </button>
               </div>
             ) : (
               <div className="session-cards-list">
-                {pastSessions.slice(0, 5).map((session) => {
+                {processedSessions.map((session) => {
                   const rawSymptoms = session.inspection?.answers?.symptoms;
                   const localizedSymptomStr = localizeSymptoms(rawSymptoms, language);
                   const symptomsList = localizedSymptomStr
                     ? localizedSymptomStr.split(/[,、/]+/).map((s) => s.trim()).filter(Boolean)
                     : [];
                   const rawCondition = session.result?.possibleConditions?.[0]?.name;
-                  const primaryCondition = localizeConditionName(rawCondition, language) || APP_CONFIG.app.name;
+                  const primaryCondition =
+                    localizeConditionName(rawCondition, language) || APP_CONFIG.app.name;
                   const riskLevel = session.result?.riskLevel || "moderate";
 
                   return (
@@ -194,11 +469,20 @@ export default function Home() {
                       {symptomsList.length > 0 && (
                         <div className="session-symptoms-row">
                           <div className="symptom-tag-list">
-                            {symptomsList.map((sym, idx) => (
+                            {symptomsList.slice(0, 3).map((sym, idx) => (
                               <span className="symptom-tag" key={`${sym}-${idx}`}>
                                 {sym}
                               </span>
                             ))}
+                            {symptomsList.length > 3 && (
+                              <span
+                                className="symptom-tag more"
+                                title={symptomsList.slice(3).join(", ")}
+                                aria-label={`${symptomsList.length - 3} more symptoms`}
+                              >
+                                +{symptomsList.length - 3}
+                              </span>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -220,7 +504,7 @@ export default function Home() {
                           <button
                             type="button"
                             className="session-delete-btn"
-                            onClick={(e) => handleDeleteSession(e, session.sessionId)}
+                            onClick={(e) => requestDeleteSession(e, session.sessionId)}
                             aria-label={copy.deleteSession}
                             title={copy.deleteSession}
                           >
@@ -240,7 +524,94 @@ export default function Home() {
           </section>
         </aside>
       </div>
+
+      {/* Confirmation Modal for Starting New Screening when Incomplete Exists */}
+      {showStartNewModal && (
+        <div className="modal-backdrop" onClick={() => setShowStartNewModal(false)}>
+          <div
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-new-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-header">
+              <h3 id="start-new-title">{copy.startNewConfirmTitle}</h3>
+              <button
+                type="button"
+                className="icon-button small"
+                onClick={() => setShowStartNewModal(false)}
+                aria-label={copy.cancel}
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <p className="modal-body">{copy.startNewConfirmDesc}</p>
+            <footer className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowStartNewModal(false)}
+              >
+                {copy.cancel}
+              </button>
+              <button
+                type="button"
+                className="primary-button danger"
+                onClick={confirmStartNew}
+              >
+                {copy.confirmStartNew}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Deleting Screenings */}
+      {deleteModalTarget && (
+        <div className="modal-backdrop" onClick={() => setDeleteModalTarget(null)}>
+          <div
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-header">
+              <h3 id="delete-dialog-title">
+                {deleteModalTarget.type === "all" ? copy.clearAllModalTitle : copy.deleteModalTitle}
+              </h3>
+              <button
+                type="button"
+                className="icon-button small"
+                onClick={() => setDeleteModalTarget(null)}
+                aria-label={copy.cancel}
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <p className="modal-body">
+              {deleteModalTarget.type === "all" ? copy.clearAllModalDesc : copy.deleteModalDesc}
+            </p>
+            <footer className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setDeleteModalTarget(null)}
+              >
+                {copy.cancel}
+              </button>
+              <button
+                type="button"
+                className="primary-button danger"
+                onClick={confirmDelete}
+              >
+                {deleteModalTarget.type === "all" ? copy.confirmClearAllBtn : copy.confirmDelete}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
-

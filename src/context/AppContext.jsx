@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { APP_CONFIG } from "../config/appConfig";
 import { speak, stopSpeaking } from "../services/speech";
 import { hydrateSession } from "../services/aiSkillEngine";
 
 const AppContext = createContext(null);
 const STORAGE_KEY = "inspection_app_sessions_v1";
+const STORAGE_VERSION = 1;
 const ACTIVE_SESSION_KEY = "swasthai_active_session_v1";
 const THEME_STORAGE_KEY = "swasthai_theme";
 
@@ -23,17 +24,65 @@ function createSession(language) {
 
 function loadSessions() {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return raw.map((item) => hydrateSession(item));
-  } catch {
+    const rawStr = localStorage.getItem(STORAGE_KEY);
+    if (!rawStr) return [];
+    const parsed = JSON.parse(rawStr);
+
+    let sessionList = [];
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.sessions)) {
+      sessionList = parsed.sessions;
+    } else if (Array.isArray(parsed)) {
+      // Migrate legacy raw array format to sessions
+      sessionList = parsed;
+    }
+
+    return sessionList
+      .filter((item) => item && typeof item === "object" && item.sessionId)
+      .map((item) => hydrateSession(item));
+  } catch (error) {
+    console.warn("Could not load sessions from localStorage, initializing empty:", error);
     return [];
+  }
+}
+
+function persistSessionsSafely(sessions) {
+  const payload = {
+    version: STORAGE_VERSION,
+    sessions,
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    // Handle QuotaExceededError defensively
+    if (error?.name === "QuotaExceededError" || error?.code === 22 || error?.code === 1014) {
+      console.warn("Storage quota exceeded. Stripping heavier image data to preserve medical records.");
+      try {
+        const strippedSessions = sessions.map((s) => ({
+          ...s,
+          inspection: {
+            ...s.inspection,
+            images: (s.inspection?.images || []).map(({ id, stepId, role, capturedAt }) => ({
+              id,
+              stepId,
+              role,
+              capturedAt,
+            })),
+          },
+        }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: STORAGE_VERSION, sessions: strippedSessions }));
+      } catch (innerError) {
+        console.error("Critical: Unable to save sessions even after stripping images:", innerError);
+      }
+    } else {
+      console.warn("Could not persist sessions to localStorage:", error);
+    }
   }
 }
 
 function loadActiveSession() {
   try {
     const raw = JSON.parse(sessionStorage.getItem(ACTIVE_SESSION_KEY) || "null");
-    return raw ? hydrateSession(raw) : null;
+    return raw && typeof raw === "object" && raw.sessionId ? hydrateSession(raw) : null;
   } catch {
     return null;
   }
@@ -55,6 +104,47 @@ export function AppProvider({ children }) {
     if (typeof window === "undefined" || !window.matchMedia) return false;
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
+  const [isOnline, setIsOnline] = useState(() => {
+    return typeof navigator !== "undefined" && typeof navigator.onLine === "boolean"
+      ? navigator.onLine
+      : true;
+  });
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+
+  const hideToast = useCallback(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((message, type = "info", duration = 3400) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ id: Date.now(), message, type });
+    if (duration > 0) {
+      toastTimerRef.current = setTimeout(() => {
+        setToast(null);
+      }, duration);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -167,11 +257,7 @@ export function AppProvider({ children }) {
         persistedSession,
         ...current.filter((item) => item.sessionId !== persistedSession.sessionId),
       ];
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch (error) {
-        console.warn("Could not save session to localStorage", error);
-      }
+      persistSessionsSafely(next);
       return next;
     });
   }, [activeSession]);
@@ -185,11 +271,7 @@ export function AppProvider({ children }) {
   const deleteSession = useCallback((sessionId) => {
     setPastSessions((current) => {
       const next = current.filter((item) => item.sessionId !== sessionId);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch (error) {
-        console.warn("Could not delete session from localStorage", error);
-      }
+      persistSessionsSafely(next);
       return next;
     });
     setActiveSession((current) => {
@@ -214,6 +296,27 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  const hasIncompleteSession = useMemo(() => {
+    if (!activeSession) return false;
+    if (activeSession.result) return false;
+    const answers = activeSession.inspection?.answers;
+    const symptoms = answers?.symptoms?.trim();
+    const images = activeSession.inspection?.images;
+    if (symptoms && symptoms.length > 0) return true;
+    if (images && images.length > 0) return true;
+    if (answers && Object.keys(answers).length > 0) return true;
+    return false;
+  }, [activeSession]);
+
+  const discardActiveSession = useCallback(() => {
+    setActiveSession(null);
+    try {
+      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+    } catch (error) {
+      console.warn("Could not remove active session from sessionStorage", error);
+    }
+  }, []);
+
   const value = useMemo(() => ({
     language,
     setLanguage,
@@ -221,8 +324,14 @@ export function AppProvider({ children }) {
     resolvedTheme,
     toggleTheme,
     setThemeMode,
+    isOnline,
+    toast,
+    showToast,
+    hideToast,
     activeSession,
     setActiveSession,
+    hasIncompleteSession,
+    discardActiveSession,
     loadPastSession,
     pastSessions,
     deleteSession,
@@ -243,7 +352,13 @@ export function AppProvider({ children }) {
     themeMode,
     resolvedTheme,
     toggleTheme,
+    isOnline,
+    toast,
+    showToast,
+    hideToast,
     activeSession,
+    hasIncompleteSession,
+    discardActiveSession,
     loadPastSession,
     pastSessions,
     deleteSession,
