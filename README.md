@@ -24,6 +24,21 @@ For a production-style local run, use `npm run build` followed by `npm start`; t
 
 The deterministic demo is no longer a silent fallback. To use it deliberately for a presentation without making API calls, set `VITE_ENABLE_DEMO_AI=true` before starting or building the frontend. Real deployments should leave it `false`.
 
+## Vercel deployment
+
+The repository includes Vercel Functions at `/api/health` and `/api/analyze`; both reuse the same validation, emergency routing, provider configuration, and structured-result schema as the local Node server.
+
+In Vercel Project Settings, add these variables for **Production** (and Preview if needed), then redeploy:
+
+```env
+AI_PROVIDER=groq
+GROQ_API_KEY=your_own_groq_key
+AI_MODEL=qwen/qwen3.8-27b
+AI_API_STYLE=chat-completions
+```
+
+Do not add `VITE_` to the key name. After deployment, `/api/health` should return JSON with `"aiConfigured": true`; it never returns the secret itself.
+
 # 2. Problem Statement & Root Causes
 
 ## **Problem statement**
