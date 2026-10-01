@@ -5,6 +5,21 @@ import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import { runAnalysis } from "../services/aiSkillEngine";
 
+function localizedErrorDescription(error, copy) {
+  const descriptions = {
+    AI_NOT_CONFIGURED: copy.aiNotConfigured,
+    AI_INVALID_KEY: copy.aiInvalidKey,
+    AI_TIMEOUT: copy.aiTimeout,
+    AI_UNAVAILABLE: copy.aiUnavailable,
+    AI_PROVIDER_ERROR: copy.aiUnavailable,
+    AI_INCOMPLETE: copy.aiUnavailable,
+    AI_INVALID_RESPONSE: copy.aiUnavailable,
+    AI_REFUSED: copy.aiUnavailable,
+    INVALID_SCREENING: copy.invalidScreening,
+  };
+  return descriptions[error?.code] || copy.analysisFailedDesc;
+}
+
 export default function Analysis() {
   const navigate = useNavigate();
   const { language, activeSession, completeAnalysis, saveSession, isOnline } = useApp();
@@ -53,7 +68,7 @@ export default function Analysis() {
       console.error("Health screening analysis error:", analysisError);
       setErrorInfo({
         title: copy.analysisFailed,
-        desc: copy.analysisFailedDesc,
+        desc: localizedErrorDescription(analysisError, copy),
       });
     } finally {
       setIsProcessing(false);

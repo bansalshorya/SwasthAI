@@ -1,3 +1,5 @@
+import { ANALYSIS_RESPONSE_SCHEMA } from "./analysisSchema.js";
+
 export const APP_CONFIG = {
   app: {
     name: "SwasthAI",
@@ -140,48 +142,7 @@ export const APP_CONFIG = {
       hi: ["किसी बीमारी की पुष्टि न करें और प्रतिशत संभावना न दें।", "फोटो से तापमान, दर्द, रक्तचाप या आंतरिक बीमारी का अनुमान न लगाएँ।", "दवा या खुराक न लिखें।"],
       en: ["Never confirm a diagnosis or provide probability percentages.", "Do not infer temperature, pain, blood pressure, or internal disease from an image.", "Do not prescribe medication or dosage."],
     },
-    responseSchema: {
-      type: "OBJECT",
-      properties: {
-        isTargetValid: { type: "BOOLEAN" },
-        riskLevel: { type: "STRING", enum: ["low", "moderate", "high", "emergency"] },
-        confidence: { type: "STRING", enum: ["low", "medium", "high"] },
-        summary: { type: "STRING" },
-        possibleConditions: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: {
-              name: { type: "STRING" },
-              confidence: { type: "STRING", enum: ["low", "medium", "high"] },
-              reason: { type: "STRING" },
-              commonSymptoms: { type: "ARRAY", items: { type: "STRING" } },
-            },
-            required: ["name", "confidence", "reason", "commonSymptoms"],
-          },
-        },
-        evidence: { type: "ARRAY", items: { type: "STRING" } },
-        imageAssessment: { type: "STRING" },
-        homeCare: { type: "ARRAY", items: { type: "STRING" } },
-        dietPlan: {
-          type: "OBJECT",
-          properties: {
-            eat: { type: "ARRAY", items: { type: "STRING" } },
-            avoid: { type: "ARRAY", items: { type: "STRING" } },
-          },
-          required: ["eat", "avoid"],
-        },
-        monitorSymptoms: { type: "ARRAY", items: { type: "STRING" } },
-        redFlags: { type: "ARRAY", items: { type: "STRING" } },
-        doctorRecommendation: {
-          type: "OBJECT",
-          properties: { specialist: { type: "STRING" }, timeframe: { type: "STRING" } },
-          required: ["specialist", "timeframe"],
-        },
-        disclaimer: { type: "STRING" },
-      },
-      required: ["isTargetValid", "riskLevel", "confidence", "summary", "possibleConditions", "evidence", "imageAssessment", "homeCare", "dietPlan", "monitorSymptoms", "redFlags", "doctorRecommendation", "disclaimer"],
-    },
+    responseSchema: ANALYSIS_RESPONSE_SCHEMA,
   },
   results: {
     title: { hi: "आपकी स्वास्थ्य स्क्रीनिंग", en: "Your health screening" },

@@ -4,60 +4,50 @@ import { localizeConditionName, localizeMedicalText, localizeSymptoms } from "./
 
 export { localizeConditionName, localizeMedicalText, localizeSymptoms };
 
-function dataUrlPart(dataUrl) {
-  const [metadata, data] = dataUrl.split(",", 2);
-  const mimeType = metadata.match(/^data:([^;]+)/)?.[1] ?? "image/webp";
-  return { inlineData: { data, mimeType } };
-}
-
-export function buildPrompt(session) {
+export function buildScreeningPayload(session) {
   const language = session.language ?? APP_CONFIG.app.defaultLanguage;
   const images = session.inspection?.images ?? [];
   const answers = session.inspection?.answers ?? {};
-  const imageRoles = images.length ? images.map((image, index) => {
+  const imagePayloads = images.filter((image) => image.dataUrl).map((image) => {
     const step = APP_CONFIG.inspection.steps.find((item) => item.id === image.stepId);
-    return `Image ${index + 1}: id=${image.stepId}, role=${step?.role ?? image.role ?? "unspecified"}, label=${localize(step?.label, language)}`;
-  }).join("\n") : "No image supplied. Do not infer visual findings.";
-  const answerLines = [
-    `- symptoms: ${answers.symptoms ?? "not_provided"}`,
-    ...APP_CONFIG.questions.map((question) => {
-      const option = question.options.find((item) => item.value === answers[question.key]);
-      return `- ${question.key}: ${answers[question.key] ?? "not_provided"}${option ? ` (${localize(option.label, language)})` : ""}`;
-    }),
-  ].join("\n");
-  const validationRules = (APP_CONFIG.ai.validationRules[language] ?? []).map((rule) => `- ${rule}`).join("\n");
-  const evidenceRules = (APP_CONFIG.ai.evidenceRules[language] ?? []).map((rule) => `- ${rule}`).join("\n");
+    return {
+      stepId: image.stepId,
+      role: step?.role ?? image.role ?? "unspecified",
+      label: localize(step?.label, language, image.stepId),
+      dataUrl: image.dataUrl,
+    };
+  });
 
-  return `${localize(APP_CONFIG.ai.persona, language)}
-
-Attached image roles, in exact part order:
-${imageRoles}
-
-User context:
-${answerLines}
-
-Target validation and triage rules:
-${validationRules}
-
-Evidence and safety boundaries:
-${evidenceRules}
-
-Keep home-care and diet guidance conservative and non-prescriptive. Include explicit escalation criteria.
-Respond in ${language === "hi" ? "Hindi" : "English"}.
-Return only JSON matching the supplied response schema. Do not add Markdown or extra text.`;
+  return {
+    language,
+    symptoms: answers.symptoms ?? "",
+    answers: Object.fromEntries(APP_CONFIG.questions.map((question) => [
+      question.key,
+      answers[question.key] ?? null,
+    ])),
+    images: imagePayloads,
+  };
 }
 
-function requestBody(session) {
-  const images = session.inspection?.images ?? [];
-  const parts = images.filter((image) => image.dataUrl).map((image) => dataUrlPart(image.dataUrl));
-  parts.push({ text: buildPrompt(session) });
-  return {
-    contents: [{ role: "user", parts }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: APP_CONFIG.ai.responseSchema,
-    },
-  };
+function analysisError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function readResponsePayload(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw analysisError("The screening service returned an unreadable response.", "AI_INVALID_RESPONSE");
+  }
+}
+
+function normalizeConfidence(value) {
+  const confidence = String(value || "").toLowerCase();
+  return ["low", "medium", "high"].includes(confidence) ? confidence : "low";
 }
 
 function extractResult(payload) {
@@ -81,16 +71,13 @@ function validateResult(result) {
   }
 
   // Normalize confidence
-  let confidence = String(result.confidence || "").toLowerCase();
-  if (!["low", "medium", "high"].includes(confidence)) {
-    confidence = "low";
-  }
+  const confidence = normalizeConfidence(result.confidence);
 
   // Normalize possibleConditions safely
   const possibleConditions = Array.isArray(result.possibleConditions)
     ? result.possibleConditions.map((item) => ({
         name: item?.name || "Unspecified condition",
-        confidence: item?.confidence || "low",
+        confidence: normalizeConfidence(item?.confidence),
         reason: item?.reason || "",
         commonSymptoms: Array.isArray(item?.commonSymptoms) ? item.commonSymptoms : [],
       }))
@@ -204,19 +191,31 @@ function buildDemoResult(session) {
 }
 
 export async function runAnalysis(session) {
-  const proxyUrl = import.meta.env.VITE_AI_PROXY_URL;
-  if (!proxyUrl) {
+  if (import.meta.env.VITE_ENABLE_DEMO_AI === "true") {
     await new Promise((resolve) => setTimeout(resolve, 1100));
     return buildDemoResult(session);
   }
 
-  const response = await fetch(proxyUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: APP_CONFIG.ai.model, request: requestBody(session) }),
-  });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload?.error?.message ?? `AI request failed (${response.status})`);
+  const proxyUrl = import.meta.env.VITE_AI_PROXY_URL || "/api/analyze";
+
+  let response;
+  try {
+    response = await fetch(proxyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ screening: buildScreeningPayload(session) }),
+    });
+  } catch {
+    throw analysisError("The screening service could not be reached. Check the API server and try again.", "AI_UNAVAILABLE");
+  }
+
+  const payload = await readResponsePayload(response);
+  if (!response.ok) {
+    throw analysisError(
+      payload?.error?.message ?? `AI request failed (${response.status})`,
+      payload?.error?.code ?? "AI_UNAVAILABLE",
+    );
+  }
   return validateResult(extractResult(payload));
 }
 
