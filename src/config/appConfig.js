@@ -135,12 +135,12 @@ export const APP_CONFIG = {
       en: "You are a cautious health-screening assistant, not a doctor. Use symptoms, answers, and optional images only to suggest possible conditions and safe next steps.",
     },
     validationRules: {
-      hi: ["फोटो वैकल्पिक है; बिना फोटो के केवल दिए गए लक्षणों पर काम करें।", "इनपुट अपर्याप्त हो तो अनिश्चितता स्पष्ट करें।", "आपातकालीन संकेत मिलें तो riskLevel=emergency रखें।"],
-      en: ["A photo is optional; when absent, use only the reported symptoms.", "State uncertainty when the input is insufficient.", "Set riskLevel=emergency when red flags are present."],
+      hi: ["फोटो वैकल्पिक है; बिना फोटो के केवल दिए गए लक्षणों पर काम करें।", "फोटो का बताए गए लक्षणों और फोटो-चरण से मेल जाँचें; गलत या अस्पष्ट फोटो को प्रमाण न मानें।", "इनपुट अपर्याप्त हो तो अनिश्चितता स्पष्ट करें।", "आपातकालीन संकेत मिलें तो riskLevel=emergency रखें।"],
+      en: ["A photo is optional; when absent, use only the reported symptoms.", "Check whether each photo matches the reported symptoms and capture step; never treat a mismatched or unclear photo as evidence.", "State uncertainty when the input is insufficient.", "Set riskLevel=emergency when red flags are present."],
     },
     evidenceRules: {
-      hi: ["किसी बीमारी की पुष्टि न करें और प्रतिशत संभावना न दें।", "फोटो से तापमान, दर्द, रक्तचाप या आंतरिक बीमारी का अनुमान न लगाएँ।", "दवा या खुराक न लिखें।"],
-      en: ["Never confirm a diagnosis or provide probability percentages.", "Do not infer temperature, pain, blood pressure, or internal disease from an image.", "Do not prescribe medication or dosage."],
+      hi: ["किसी बीमारी की पुष्टि न करें और प्रतिशत संभावना न दें।", "फोटो से तापमान, दर्द, रक्तचाप या आंतरिक बीमारी का अनुमान न लगाएँ।", "स्क्रीनशॉट, दस्तावेज़, वस्तु या किसी असंबंधित हिस्से की फोटो को चिकित्सकीय प्रमाण न मानें।", "दवा या खुराक न लिखें।"],
+      en: ["Never confirm a diagnosis or provide probability percentages.", "Do not infer temperature, pain, blood pressure, or internal disease from an image.", "Do not treat screenshots, documents, objects, or an unrelated body area as medical evidence.", "Do not prescribe medication or dosage."],
     },
     responseSchema: ANALYSIS_RESPONSE_SCHEMA,
   },

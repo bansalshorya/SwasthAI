@@ -38,7 +38,12 @@ function validResult() {
       commonSymptoms: ["Itching", "Redness"],
     }],
     evidence: ["Itchy red rash reported for two days"],
-    imageAssessment: "No image supplied.",
+    imageAssessment: "No photo was available for visual review.",
+    imageConsistency: {
+      status: "not_provided",
+      explanation: "No photo was supplied; the result is based only on the reported symptoms and answers.",
+      recommendedAction: "If the concern is clearly visible, you may start a new screening with a relevant photo.",
+    },
     homeCare: ["Avoid new skin products and monitor the area."],
     dietPlan: { eat: ["Normal balanced meals"], avoid: ["No specific restriction"] },
     monitorSymptoms: ["Spreading redness"],
@@ -116,6 +121,9 @@ test("builds a strict multimodal Groq chat-completions request", () => {
   assert.equal(request.store, undefined);
   assert.equal(request.response_format.type, "json_schema");
   assert.equal(request.response_format.json_schema.strict, true);
+  assert.ok(request.response_format.json_schema.schema.required.includes("imageConsistency"));
+  assert.match(request.messages[0].content, /imageConsistency\.status/);
+  assert.match(request.messages[0].content, /mismatch/);
   assert.match(request.messages[1].content[0].text, /role=visible_symptom_overview/);
   assert.deepEqual(
     request.messages[1].content.map((item) => item.type),
@@ -151,6 +159,23 @@ test("emergency phrases bypass the model even when no API key is configured", as
   assert.equal(fetchCalled, false);
   assert.equal(output.model, "deterministic-safety-rule");
   assert.equal(output.result.riskLevel, "emergency");
+  assert.equal(output.result.imageConsistency.status, "not_provided");
+});
+
+test("emergency routing marks supplied images as not evaluated", async () => {
+  const output = await analyzeScreening(screening({
+    symptoms: "I have chest pain and cannot breathe",
+    images: [{ stepId: "symptom_overview", dataUrl: SAMPLE_IMAGE }],
+  }), {
+    provider: "groq",
+    apiKey: "",
+    fetchImpl: async () => {
+      throw new Error("should not be called");
+    },
+  });
+
+  assert.equal(output.result.imageConsistency.status, "not_evaluated");
+  assert.match(output.result.imageConsistency.recommendedAction, /emergency help/i);
 });
 
 test("requires the API key on the server for ordinary screening", async () => {
@@ -184,6 +209,44 @@ test("parses a structured Groq chat-completions response", async () => {
   assert.equal(output.provider, "groq");
   assert.equal(output.model, "test-model");
   assert.deepEqual(output.result, expected);
+});
+
+test("mismatched images are excluded from evidence and lower confidence", async () => {
+  const expected = {
+    ...validResult(),
+    confidence: "high",
+    evidence: [
+      "Reported itchy rash for two days",
+      "Image note: the uploaded screenshot does not show a forearm rash",
+    ],
+    imageAssessment: "mismatch",
+    imageConsistency: {
+      status: "mismatch",
+      explanation: "The photo is a screenshot and does not show the described forearm rash.",
+      recommendedAction: "Upload a clear photo of the affected forearm.",
+    },
+  };
+  const output = await analyzeScreening(screening({
+    images: [{ stepId: "symptom_overview", dataUrl: SAMPLE_IMAGE }],
+  }), {
+    provider: "groq",
+    apiKey: "test-key",
+    model: "test-model",
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          choices: [{ finish_reason: "stop", message: { content: JSON.stringify(expected) } }],
+        };
+      },
+    }),
+  });
+
+  assert.equal(output.result.imageConsistency.status, "mismatch");
+  assert.equal(output.result.confidence, "low");
+  assert.deepEqual(output.result.evidence, ["Reported itchy rash for two days"]);
+  assert.equal(output.result.imageAssessment, output.result.imageConsistency.explanation);
 });
 
 test("parses a structured OpenAI Responses response", async () => {

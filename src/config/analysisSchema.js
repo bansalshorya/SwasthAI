@@ -23,6 +23,26 @@ export const ANALYSIS_RESPONSE_SCHEMA = {
     },
     evidence: { type: "array", maxItems: 8, items: { type: "string" } },
     imageAssessment: { type: "string" },
+    imageConsistency: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        status: {
+          type: "string",
+          enum: [
+            "not_provided",
+            "match",
+            "partial_match",
+            "mismatch",
+            "unclear",
+            "not_evaluated",
+          ],
+        },
+        explanation: { type: "string" },
+        recommendedAction: { type: "string" },
+      },
+      required: ["status", "explanation", "recommendedAction"],
+    },
     homeCare: { type: "array", maxItems: 8, items: { type: "string" } },
     dietPlan: {
       type: "object",
@@ -54,6 +74,7 @@ export const ANALYSIS_RESPONSE_SCHEMA = {
     "possibleConditions",
     "evidence",
     "imageAssessment",
+    "imageConsistency",
     "homeCare",
     "dietPlan",
     "monitorSymptoms",

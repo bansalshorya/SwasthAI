@@ -133,12 +133,16 @@ export default function Result() {
     const doctorLine = result.doctorRecommendation?.specialist
       ? `${result.doctorRecommendation.specialist} (${result.doctorRecommendation.timeframe || ""})`
       : "";
+    const imageMatchLine = result.imageConsistency?.status
+      ? `${imageConsistencyLabel}: ${result.imageConsistency.explanation}`
+      : "";
 
     const summaryText = [
       "SwasthAI - Health Screening Report Summary",
       `Screened on: ${formatReportDate(session?.createdAt, language)}`,
       `Risk Level: ${riskLabel}`,
       reportedSymptoms ? `Reported Symptoms: ${reportedSymptoms}` : "",
+      imageMatchLine ? `Photo Check: ${imageMatchLine}` : "",
       conditionLines ? `\nPossible Conditions:\n${conditionLines}` : "",
       doctorLine ? `\nRecommendation:\n${doctorLine}` : "",
       `\nNotice: ${copy.printDisclaimer}`,
@@ -172,6 +176,8 @@ export default function Result() {
   const riskLabel = copy[result.riskLevel] ?? result.riskLevel;
   const reportedSymptoms = session?.inspection?.answers?.symptoms;
   const isHighRisk = result.riskLevel === "emergency" || result.riskLevel === "high";
+  const imageConsistencyStatus = result.imageConsistency?.status || "not_provided";
+  const imageConsistencyLabel = copy[`imageStatus_${imageConsistencyStatus}`] ?? imageConsistencyStatus;
 
   const contextItems = (APP_CONFIG.questions || []).map((q) => {
     const rawVal = session?.inspection?.answers?.[q.key];
@@ -358,12 +364,28 @@ export default function Result() {
         expandLabel={copy.expandSection}
       >
         <BulletList items={result.evidence} />
-        {result.imageAssessment && (
-          <div className="image-note">
-            <Eye size={17} aria-hidden="true" />
-            <span>
-              <strong>{copy.imageUsed}:</strong> {result.imageAssessment}
-            </span>
+        {(result.imageConsistency || result.imageAssessment) && (
+          <div className={`image-consistency-card image-status-${imageConsistencyStatus}`}>
+            <div className="image-consistency-heading">
+              <span className="image-consistency-title">
+                <Eye size={17} aria-hidden="true" />
+                <strong>{copy.imageConsistencyTitle}</strong>
+              </span>
+              <span className="image-consistency-badge">{imageConsistencyLabel}</span>
+            </div>
+            {result.imageConsistency?.explanation && (
+              <p>{result.imageConsistency.explanation}</p>
+            )}
+            {result.imageAssessment && (
+              <div className="image-consistency-detail">
+                <strong>{copy.imageObserved}:</strong> {result.imageAssessment}
+              </div>
+            )}
+            {result.imageConsistency?.recommendedAction && (
+              <div className="image-consistency-action">
+                <strong>{copy.imageNextStep}:</strong> {result.imageConsistency.recommendedAction}
+              </div>
+            )}
           </div>
         )}
       </CollapsibleCard>

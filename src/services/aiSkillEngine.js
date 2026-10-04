@@ -50,6 +50,61 @@ function normalizeConfidence(value) {
   return ["low", "medium", "high"].includes(confidence) ? confidence : "low";
 }
 
+const IMAGE_CONSISTENCY_STATUSES = new Set([
+  "not_provided",
+  "match",
+  "partial_match",
+  "mismatch",
+  "unclear",
+  "not_evaluated",
+]);
+
+function imageConsistencyFallback({ imageCount = 0, language = "en", prototype = false } = {}) {
+  const hindi = language === "hi";
+  if (!imageCount) {
+    return {
+      status: "not_provided",
+      explanation: hindi
+        ? "कोई फोटो नहीं दी गई; परिणाम केवल बताए गए लक्षणों और उत्तरों पर आधारित है।"
+        : "No photo was supplied; the result is based only on the reported symptoms and answers.",
+      recommendedAction: hindi
+        ? "यदि लक्षण साफ दिखाई देता है तो अगली स्क्रीनिंग में संबंधित फोटो जोड़ सकते हैं।"
+        : "If the concern is clearly visible, you may add a relevant photo in a new screening.",
+    };
+  }
+  if (prototype) {
+    return {
+      status: "not_evaluated",
+      explanation: hindi
+        ? "प्रोटोटाइप मोड में फोटो और बताए गए लक्षणों के मेल का वास्तविक AI मूल्यांकन नहीं किया गया।"
+        : "Prototype mode did not perform a real AI comparison between the photo and the reported symptoms.",
+      recommendedAction: hindi
+        ? "वास्तविक फोटो समीक्षा के लिए लाइव AI सेवा का उपयोग करें।"
+        : "Use the live AI service for a real photo review.",
+    };
+  }
+  return {
+    status: "unclear",
+    explanation: hindi
+      ? "पुराने परिणाम में फोटो और लक्षणों के मेल की स्पष्ट स्थिति उपलब्ध नहीं है।"
+      : "This older result does not contain a clear photo-to-symptom consistency status.",
+    recommendedAction: hindi
+      ? "जरूरत हो तो संबंधित और साफ फोटो के साथ नई स्क्रीनिंग करें।"
+      : "Start a new screening with a clear, relevant photo if needed.",
+  };
+}
+
+function normalizeImageConsistency(value, options = {}) {
+  const fallback = imageConsistencyFallback(options);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const status = String(value.status || "").toLowerCase();
+  return {
+    status: IMAGE_CONSISTENCY_STATUSES.has(status) ? status : fallback.status,
+    explanation: String(value.explanation || fallback.explanation),
+    recommendedAction: String(value.recommendedAction || fallback.recommendedAction),
+  };
+}
+
 function extractResult(payload) {
   if (payload?.result && typeof payload.result === "object") return payload.result;
   if (payload?.possibleConditions && payload?.riskLevel) return payload;
@@ -58,7 +113,7 @@ function extractResult(payload) {
   return JSON.parse(text.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, ""));
 }
 
-function validateResult(result) {
+function validateResult(result, { imageCount = 0, language = "en" } = {}) {
   if (!result || typeof result !== "object") {
     throw new Error("The screening service returned an empty result. Please try again.");
   }
@@ -70,8 +125,16 @@ function validateResult(result) {
     riskLevel = "moderate";
   }
 
-  // Normalize confidence
-  const confidence = normalizeConfidence(result.confidence);
+  const imageConsistency = normalizeImageConsistency(result.imageConsistency, {
+    imageCount,
+    language,
+    prototype: Boolean(result.prototype),
+  });
+
+  // A mismatched or unreadable image must not increase overall confidence.
+  const confidence = ["mismatch", "unclear"].includes(imageConsistency.status)
+    ? "low"
+    : normalizeConfidence(result.confidence);
 
   // Normalize possibleConditions safely
   const possibleConditions = Array.isArray(result.possibleConditions)
@@ -96,6 +159,8 @@ function validateResult(result) {
     possibleConditions,
     doctorRecommendation,
     evidence: Array.isArray(result.evidence) ? result.evidence : [],
+    imageAssessment: result.imageAssessment || "",
+    imageConsistency,
     homeCare: Array.isArray(result.homeCare) ? result.homeCare : [],
     dietPlan: {
       eat: Array.isArray(result.dietPlan?.eat) ? result.dietPlan.eat : [],
@@ -170,6 +235,11 @@ function buildDemoResult(session) {
     imageAssessment: isHindi
       ? images.length ? `${images.length} फोटो जोड़ी गई। डेमो मोड में वास्तविक दृश्य निदान नहीं किया जाता।` : "कोई फोटो नहीं जोड़ी गई; स्क्रीनिंग केवल आपके उत्तरों पर आधारित है।"
       : images.length ? `${images.length} photo(s) added. Prototype mode does not perform a real visual diagnosis.` : "No photo was added; this screening is based only on your answers.",
+    imageConsistency: imageConsistencyFallback({
+      imageCount: images.length,
+      language,
+      prototype: true,
+    }),
     homeCare: isHindi
       ? ["आराम करें और पर्याप्त तरल लें।", "लक्षणों और तापमान में बदलाव नोट करें।", "यदि परेशानी बढ़े तो स्वयं इलाज करने के बजाय डॉक्टर से बात करें।"]
       : ["Rest and drink adequate fluids.", "Keep track of symptom and temperature changes.", "If symptoms worsen, speak with a clinician instead of self-treating."],
@@ -216,7 +286,10 @@ export async function runAnalysis(session) {
       payload?.error?.code ?? "AI_UNAVAILABLE",
     );
   }
-  return validateResult(extractResult(payload));
+  return validateResult(extractResult(payload), {
+    imageCount: session.inspection?.images?.length ?? 0,
+    language: session.language ?? APP_CONFIG.app.defaultLanguage,
+  });
 }
 
 export function hydrateSession(session, targetLanguage) {
@@ -268,6 +341,7 @@ export function hydrateSession(session, targetLanguage) {
       ? existingResult.evidence
       : fallback.evidence,
     imageAssessment: existingResult.imageAssessment || fallback.imageAssessment,
+    imageConsistency: existingResult.imageConsistency || fallback.imageConsistency,
     homeCare: (existingResult.homeCare && existingResult.homeCare.length)
       ? existingResult.homeCare
       : fallback.homeCare,
@@ -295,6 +369,16 @@ export function hydrateSession(session, targetLanguage) {
   const localizedEvidence = (fullResult.evidence || []).map((e) => localizeMedicalText(e, language));
   const localizedSummary = localizeMedicalText(fullResult.summary, language);
   const localizedImageAssessment = localizeMedicalText(fullResult.imageAssessment, language);
+  const imageConsistency = normalizeImageConsistency(fullResult.imageConsistency, {
+    imageCount: inspection.images.length,
+    language,
+    prototype: Boolean(fullResult.prototype),
+  });
+  const localizedImageConsistency = {
+    ...imageConsistency,
+    explanation: localizeMedicalText(imageConsistency.explanation, language),
+    recommendedAction: localizeMedicalText(imageConsistency.recommendedAction, language),
+  };
   const localizedHomeCare = (fullResult.homeCare || []).map((h) => localizeMedicalText(h, language));
   const localizedDietPlan = {
     eat: (fullResult.dietPlan?.eat || []).map((item) => localizeMedicalText(item, language)),
@@ -313,6 +397,7 @@ export function hydrateSession(session, targetLanguage) {
     possibleConditions: localizedConditions,
     evidence: localizedEvidence,
     imageAssessment: localizedImageAssessment,
+    imageConsistency: localizedImageConsistency,
     homeCare: localizedHomeCare,
     dietPlan: localizedDietPlan,
     monitorSymptoms: localizedMonitorSymptoms,
