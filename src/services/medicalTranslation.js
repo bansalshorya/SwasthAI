@@ -128,6 +128,14 @@ const PHRASES = [
     en: "New swelling or spreading redness",
     hi: "नई सूजन या फैलती लालिमा",
   },
+  {
+    en: "Fever exceeding 102°F (38.9°C)",
+    hi: "102°F (38.9°C) से अधिक बुखार",
+  },
+  {
+    en: "Temperature above 102°F lasting more than 48 hours",
+    hi: "102°F से अधिक तापमान जो 48 घंटे से अधिक रहे",
+  },
   // Red flags
   {
     en: "Difficulty breathing",
@@ -136,6 +144,18 @@ const PHRASES = [
   {
     en: "Chest pain",
     hi: "सीने में दर्द",
+  },
+  {
+    en: "High fever over 103°F (39.4°C) not responding to medication",
+    hi: "103°F (39.4°C) से अधिक तेज़ बुखार जो कम न हो रहा हो",
+  },
+  {
+    en: "High fever over 103°F (39.4°C)",
+    hi: "103°F (39.4°C) से अधिक तेज़ बुखार",
+  },
+  {
+    en: "Fever over 103°F with stiff neck or severe headache",
+    hi: "गर्दन में अकड़न या तेज़ सिरदर्द के साथ 103°F से अधिक बुखार",
   },
   {
     en: "Fainting or confusion",
@@ -225,16 +245,54 @@ export function localizeSymptoms(symptoms, targetLang = "hi") {
     .join("");
 }
 
+export function sanitizeDegreeSymbols(str) {
+  if (typeof str !== "string") return str;
+  return str
+    // Double-escaped entities
+    .replace(/&amp;deg;/gi, "°")
+    .replace(/&amp;#176;/gi, "°")
+    .replace(/&amp;#x00b0;/gi, "°")
+    // HTML / XML entities
+    .replace(/&deg;/gi, "°")
+    .replace(/&#176;/gi, "°")
+    .replace(/&#x00B0;/gi, "°")
+    .replace(/&#x00b0;/gi, "°")
+    .replace(/\\u00b0/gi, "°")
+    .replace(/\\u00B0/gi, "°")
+    // Multi-byte mojibake sequences
+    .replace(/\u00C3\u201A\u00C2\u00B0/g, "°") // Ã‚Â°
+    .replace(/\u00C3\u0192\u00C2\u00B0/g, "°") // ÃƒÂ°
+    .replace(/\u00C3\u0082\u00C2\u00B0/g, "°")
+    .replace(/\u00C2\u00B0/g, "°")             // Â°
+    .replace(/\u00E2\u00B0/g, "°")             // â°
+    .replace(/Ã‚Â°/g, "°")
+    .replace(/ÃƒÂ°/g, "°")
+    .replace(/Â°/g, "°")
+    .replace(/â°/g, "°")
+    // Standalone corrupted byte markers before F/C
+    .replace(/(\d+(?:\.\d+)?)\s*(?:[\u00C2\u00E2\uFFFD]|&nbsp;)?\s*[\u00BA\u02DA\u2070]\s*([FCfc]\b)/g, (m, p1, p2) => `${p1}°${p2.toUpperCase()}`)
+    .replace(/(\d+(?:\.\d+)?)\s*[\u00C2\u00E2]\s*([FCfc]\b)/g, (m, p1, p2) => `${p1}°${p2.toUpperCase()}`)
+    .replace(/(\d+(?:\.\d+)?)\s*[\uFFFD]\s*([FCfc]\b)/g, (m, p1, p2) => `${p1}°${p2.toUpperCase()}`)
+    .replace(/[\uFFFD]\s*([FCfc]\b)/g, (m, p) => `°${p.toUpperCase()}`)
+    // Unicode symbol characters for ℃ (U+2103) and ℉ (U+2109)
+    .replace(/\u2103/g, "°C")
+    .replace(/\u2109/g, "°F")
+    // Standardize spacing around degree symbol and temperature units
+    .replace(/(\d+(?:\.\d+)?)\s*°\s*([FCfc]\b)/g, (m, p1, p2) => `${p1}°${p2.toUpperCase()}`)
+    .replace(/(\d+(?:\.\d+)?)\s*°\s*\(/g, (m, p1) => `${p1}° (`);
+}
+
 export function localizeMedicalText(text, targetLang = "hi") {
   if (!text || typeof text !== "string") return text;
-  const trimmed = text.trim();
+  const sanitized = sanitizeDegreeSymbols(text);
+  const trimmed = sanitized.trim();
 
   // 1. Direct phrase match
   const phraseMatch = PHRASES.find(
     (item) => item.en.toLowerCase() === trimmed.toLowerCase() || item.hi === trimmed
   );
   if (phraseMatch) {
-    return targetLang === "hi" ? phraseMatch.hi : phraseMatch.en;
+    return sanitizeDegreeSymbols(targetLang === "hi" ? phraseMatch.hi : phraseMatch.en);
   }
 
   // 2. Direct condition match
@@ -249,15 +307,15 @@ export function localizeMedicalText(text, targetLang = "hi") {
   if (targetLang === "hi") {
     if (trimmed.startsWith("Main symptoms reported:")) {
       const rest = trimmed.replace(/^Main symptoms reported:\s*/i, "");
-      return `बताए गए मुख्य लक्षण: ${localizeSymptoms(rest, "hi")}`;
+      return sanitizeDegreeSymbols(`बताए गए मुख्य लक्षण: ${localizeSymptoms(rest, "hi")}`);
     }
     if (trimmed.startsWith("Duration:")) {
       const rest = trimmed.replace(/^Duration:\s*/i, "");
-      return `अवधि: ${localizeMedicalText(rest, "hi")}`;
+      return sanitizeDegreeSymbols(`अवधि: ${localizeMedicalText(rest, "hi")}`);
     }
     if (trimmed.startsWith("Severity:")) {
       const rest = trimmed.replace(/^Severity:\s*/i, "");
-      return `गंभीरता: ${localizeMedicalText(rest, "hi")}`;
+      return sanitizeDegreeSymbols(`गंभीरता: ${localizeMedicalText(rest, "hi")}`);
     }
     if (trimmed.includes("photo(s) added")) {
       const countMatch = trimmed.match(/^(\d+)\s+photo/i);
@@ -267,15 +325,15 @@ export function localizeMedicalText(text, targetLang = "hi") {
   } else {
     if (trimmed.startsWith("बताए गए मुख्य लक्षण:")) {
       const rest = trimmed.replace(/^बताए गए मुख्य लक्षण:\s*/, "");
-      return `Main symptoms reported: ${localizeSymptoms(rest, "en")}`;
+      return sanitizeDegreeSymbols(`Main symptoms reported: ${localizeSymptoms(rest, "en")}`);
     }
     if (trimmed.startsWith("अवधि:")) {
       const rest = trimmed.replace(/^अवधि:\s*/, "");
-      return `Duration: ${localizeMedicalText(rest, "en")}`;
+      return sanitizeDegreeSymbols(`Duration: ${localizeMedicalText(rest, "en")}`);
     }
     if (trimmed.startsWith("गंभीरता:")) {
       const rest = trimmed.replace(/^गंभीरता:\s*/, "");
-      return `Severity: ${localizeMedicalText(rest, "en")}`;
+      return sanitizeDegreeSymbols(`Severity: ${localizeMedicalText(rest, "en")}`);
     }
     if (trimmed.includes("फोटो जोड़ी गई")) {
       const countMatch = trimmed.match(/^(\d+)\s+फोटो/);
@@ -284,5 +342,6 @@ export function localizeMedicalText(text, targetLang = "hi") {
     }
   }
 
-  return text;
+  return sanitized;
 }
+

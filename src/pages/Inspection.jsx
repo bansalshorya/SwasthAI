@@ -1,17 +1,34 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Camera, Check, Images, Loader2, LockKeyhole, RotateCcw, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  Images,
+  Loader2,
+  LockKeyhole,
+  RotateCcw,
+  ShieldCheck,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
-import { captureVideoFrame, openCamera, pickFromGallery, stopCamera } from "../services/camera";
+import {
+  captureVideoFrame,
+  openCamera,
+  pickFromGallery,
+  processImageFile,
+  stopCamera,
+} from "../services/camera";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
 
 export default function Inspection() {
   const navigate = useNavigate();
-  const { language, activeSession, addImage, speakText } = useApp();
+  const { language, activeSession, addImage, removeImage, speakText } = useApp();
   const copy = ui(language);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -21,6 +38,9 @@ export default function Inspection() {
   const [error, setError] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
   const step = APP_CONFIG.inspection.steps[Math.min(index, APP_CONFIG.inspection.steps.length - 1)];
   const images = activeSession?.inspection?.images ?? [];
 
@@ -91,6 +111,45 @@ export default function Inspection() {
     }
   }
 
+  async function handleFileSelected(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setIsProcessing(true);
+    try {
+      const image = await processImageFile(file, step);
+      if (image) {
+        setPreview(image);
+        setMode("preview");
+      }
+    } catch {
+      setError(copy.cameraPermission);
+    } finally {
+      setIsProcessing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDrop(event) {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    setError("");
+    setIsProcessing(true);
+    try {
+      const image = await processImageFile(file, step);
+      if (image) {
+        setPreview(image);
+        setMode("preview");
+      }
+    } catch {
+      setError(copy.cameraPermission);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
   function accept() {
     if (!preview || isProcessing) return;
     setIsProcessing(true);
@@ -103,8 +162,9 @@ export default function Inspection() {
         capturedAt: new Date().toISOString(),
       });
       setPreview(null);
-      if (index >= APP_CONFIG.inspection.steps.length - 1) navigate("/analysis");
-      else {
+      if (index >= APP_CONFIG.inspection.steps.length - 1) {
+        navigate("/review");
+      } else {
         setIndex((value) => value + 1);
         setMode("choice");
       }
@@ -113,59 +173,92 @@ export default function Inspection() {
     }
   }
 
-  if (mode === "camera") return (
-    <main className="camera-screen">
-      <video ref={videoRef} autoPlay muted playsInline />
-      <header className="camera-header">
-        <button className="dark-icon" onClick={closeCamera}><X /></button>
-        <div><strong>{localize(step.label, language)}</strong><small>{index + 1} / {APP_CONFIG.inspection.maximumImages}</small></div>
-        <span className="camera-spacer" />
-      </header>
-      <div className="camera-guide"><strong>{localize(step.label, language)}</strong><span>{localize(step.subtext, language)}</span></div>
-      <footer className="camera-footer single-control">
-        <button
-          className="shutter"
-          onClick={capture}
-          disabled={isCapturing}
-          aria-label={isCapturing ? copy.capturingImage : copy.usePhoto}
-        >
-          <span className={isCapturing ? "capturing" : ""} />
-        </button>
-      </footer>
-    </main>
-  );
-
-  if (mode === "preview") return (
-    <main className="camera-screen">
-      <img className="camera-preview" src={preview} alt="Preview" />
-      <header className="camera-header">
-        <button className="dark-icon" onClick={() => { setPreview(null); setMode("choice"); }}><X /></button>
-        <div><strong>{localize(step.label, language)}</strong><small>{copy.optionalPhoto}</small></div>
-        <span className="camera-spacer" />
-      </header>
-      <footer className="camera-footer">
-        <div className="two-buttons">
-          <button className="secondary-dark" disabled={isProcessing} onClick={startCamera}>
-            <RotateCcw size={18} />
-            <span>{copy.retake}</span>
+  if (mode === "camera") {
+    return (
+      <main className="camera-screen">
+        <video ref={videoRef} autoPlay muted playsInline />
+        <header className="camera-header">
+          <button className="dark-icon" onClick={closeCamera} aria-label={copy.cancel}>
+            <X />
           </button>
-          <button className="success-button" disabled={isProcessing} onClick={accept}>
-            {isProcessing ? <Loader2 size={18} className="spin" /> : <Check size={18} />}
-            <span>{copy.usePhoto}</span>
-          </button>
+          <div>
+            <strong>{localize(step.label, language)}</strong>
+            <small>
+              {index + 1} / {APP_CONFIG.inspection.maximumImages}
+            </small>
+          </div>
+          <span className="camera-spacer" />
+        </header>
+        <div className="camera-guide">
+          <strong>{localize(step.label, language)}</strong>
+          <span>{localize(step.subtext, language)}</span>
         </div>
-      </footer>
-    </main>
-  );
+        <footer className="camera-footer single-control">
+          <button
+            className="shutter"
+            onClick={capture}
+            disabled={isCapturing}
+            aria-label={isCapturing ? copy.capturingImage : copy.usePhoto}
+          >
+            <span className={isCapturing ? "capturing" : ""} />
+          </button>
+        </footer>
+      </main>
+    );
+  }
+
+  if (mode === "preview") {
+    return (
+      <main className="camera-screen">
+        <img className="camera-preview" src={preview} alt="Preview" />
+        <header className="camera-header">
+          <button
+            className="dark-icon"
+            onClick={() => {
+              setPreview(null);
+              setMode("choice");
+            }}
+            aria-label={copy.cancel}
+          >
+            <X />
+          </button>
+          <div>
+            <strong>{localize(step.label, language)}</strong>
+            <small>{copy.optionalPhoto}</small>
+          </div>
+          <span className="camera-spacer" />
+        </header>
+        <footer className="camera-footer">
+          <div className="two-buttons">
+            <button className="secondary-dark" disabled={isProcessing} onClick={startCamera}>
+              <RotateCcw size={18} />
+              <span>{copy.retake}</span>
+            </button>
+            <button className="success-button" disabled={isProcessing} onClick={accept}>
+              {isProcessing ? <Loader2 size={18} className="spin" /> : <Check size={18} />}
+              <span>{copy.usePhoto}</span>
+            </button>
+          </div>
+        </footer>
+      </main>
+    );
+  }
 
   return (
     <main className="app-screen photo-screen">
       <header className="top-row">
-        <button className="icon-button" onClick={() => navigate("/questions")} aria-label={copy.back}>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => navigate("/questions")}
+          aria-label={copy.back}
+        >
           <ArrowLeft />
         </button>
         <div className="header-actions">
-          <div className="step-label" aria-label={copy.stepThreeOfFour}>{copy.stepThreeOfFour}</div>
+          <div className="step-label" aria-label={copy.stepThreeOfFour}>
+            {copy.stepThreeOfFour}
+          </div>
           <LanguageSwitch />
           <ThemeToggle />
         </div>
@@ -174,28 +267,103 @@ export default function Inspection() {
       <div className="progress-track" aria-hidden="true">
         <span style={{ width: "75%" }} />
       </div>
+
       <section className="photo-heading">
-        <div className="section-icon"><Camera size={22} /></div>
+        <div className="section-icon">
+          <Camera size={22} />
+        </div>
         <p className="eyebrow">{copy.optionalPhoto}</p>
         <h1>{copy.optionalPhotoTitle}</h1>
         <p>{copy.optionalPhotoHint}</p>
       </section>
 
-      {images.length > 0 && <div className="photo-strip">
-        {images.map((image) => <div className="photo-thumb" key={image.id}><img src={image.dataUrl} alt="" /><span><Check size={13} /></span></div>)}
-        <strong>{images.length} / {APP_CONFIG.inspection.maximumImages}</strong>
-      </div>}
+      {/* Reassurance disclaimer badge */}
+      <div className="photo-context-banner" role="note">
+        <ShieldCheck size={16} className="photo-context-banner-icon" aria-hidden="true" />
+        <span>{copy.photoContextNotice}</span>
+      </div>
 
-      <section className="capture-card">
-        <div className="capture-visual"><Camera size={42} /></div>
+      {images.length > 0 && (
+        <div className="photo-strip" role="region" aria-label="Attached photos">
+          {images.map((image) => (
+            <div className="photo-thumb" key={image.id}>
+              <img src={image.dataUrl} alt="Attached thumbnail" />
+              <span className="photo-thumb-status" aria-hidden="true">
+                <Check size={13} />
+              </span>
+              <button
+                type="button"
+                className="photo-remove-btn"
+                onClick={() => removeImage(image.id)}
+                aria-label={copy.removePhoto}
+                title={copy.removePhoto}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+          <strong>
+            {images.length} / {APP_CONFIG.inspection.maximumImages}
+          </strong>
+        </div>
+      )}
+
+      {/* Drag & drop capable capture card */}
+      <section
+        className={`capture-card ${isDragging ? "dragging" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+      >
+        <div className="capture-visual">
+          {isDragging ? <UploadCloud size={44} className="drag-icon-active" /> : <Camera size={42} />}
+        </div>
         <h2>{localize(step.label, language)}</h2>
         <p>{localize(step.subtext, language)}</p>
-        <button className="primary-button" onClick={startCamera}><Camera size={18} />{copy.openCamera}</button>
-        <button className="outline-button" onClick={gallery}><Images size={18} />{copy.gallery}</button>
+
+        <div className="photo-actions-group">
+          <button type="button" className="primary-button" onClick={startCamera}>
+            <Camera size={18} />
+            {copy.openCamera}
+          </button>
+          <button type="button" className="outline-button" onClick={gallery}>
+            <Images size={18} />
+            {copy.gallery}
+          </button>
+        </div>
+
+        <div className="drag-drop-hint" aria-hidden="true">
+          <UploadCloud size={15} />
+          <span>{copy.dragDropPhoto}</span>
+        </div>
+
+        {/* Hidden accessible file input fallback */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={handleFileSelected}
+        />
       </section>
-      {error && <p className="form-error">{error}</p>}
-      <div className="privacy-note"><LockKeyhole size={16} />{copy.photoPrivacy}</div>
-      <button className="text-continue" onClick={() => navigate("/analysis")}>{images.length ? copy.finishPhotos : copy.skipPhoto}</button>
+
+      {error && <p className="form-error" role="alert">{error}</p>}
+
+      <div className="privacy-note">
+        <LockKeyhole size={16} aria-hidden="true" />
+        {copy.photoPrivacy}
+      </div>
+
+      <button
+        type="button"
+        className="text-continue"
+        onClick={() => navigate("/review")}
+      >
+        {images.length ? copy.reviewAndContinue : copy.skipPhotoAndReview}
+      </button>
     </main>
   );
 }

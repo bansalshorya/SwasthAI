@@ -218,6 +218,21 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
+  const removeImage = useCallback((idOrStepId) => {
+    setActiveSession((session) => {
+      if (!session || !session.inspection) return session;
+      return {
+        ...session,
+        inspection: {
+          ...session.inspection,
+          images: (session.inspection.images || []).filter(
+            (item) => item.id !== idOrStepId && item.stepId !== idOrStepId
+          ),
+        },
+      };
+    });
+  }, []);
+
   const answerQuestion = useCallback((key, value) => {
     setActiveSession((session) => ({
       ...session,
@@ -339,6 +354,7 @@ export function AppProvider({ children }) {
     muted,
     startInspection,
     addImage,
+    removeImage,
     answerQuestion,
     completeAnalysis,
     saveSession,
@@ -366,6 +382,7 @@ export function AppProvider({ children }) {
     muted,
     startInspection,
     addImage,
+    removeImage,
     answerQuestion,
     completeAnalysis,
     saveSession,

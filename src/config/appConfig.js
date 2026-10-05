@@ -44,8 +44,8 @@ export const APP_CONFIG = {
     },
   ],
   symptomSuggestions: {
-    hi: ["बुखार", "खाँसी", "सिर दर्द", "पेट दर्द", "त्वचा पर दाने"],
-    en: ["Fever", "Cough", "Headache", "Stomach pain", "Skin rash"],
+    hi: ["बुखार", "खाँसी", "सिर दर्द", "पेट दर्द", "गले में खराश", "बदन दर्द", "त्वचा पर दाने"],
+    en: ["Fever", "Cough", "Headache", "Stomach pain", "Sore throat", "Body pain", "Skin rash"],
   },
   inspection: {
     minimumImages: 0,

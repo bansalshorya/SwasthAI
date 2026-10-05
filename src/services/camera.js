@@ -45,18 +45,25 @@ function normalizeImage(dataUrl, { maxDimension = 1000, quality = 0.84 } = {}) {
   });
 }
 
+export async function processImageFile(file, options = {}) {
+  if (!file || !file.type || !file.type.startsWith("image/")) return null;
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async () => resolve(await normalizeImage(reader.result, options));
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
 async function browserFilePicker(options) {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-    input.onchange = () => {
+    input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return resolve(null);
-      const reader = new FileReader();
-      reader.onload = async () => resolve(await normalizeImage(reader.result, options));
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
+      resolve(await processImageFile(file, options));
     };
     input.click();
   });

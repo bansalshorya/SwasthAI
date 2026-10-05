@@ -112,6 +112,36 @@ export default function Home() {
     return result;
   }, [pastSessions, searchQuery, severityFilter, sortOrder, language]);
 
+  // Derive genuine statistics strictly from existing pastSessions
+  const screeningStats = useMemo(() => {
+    if (!pastSessions || !pastSessions.length) return null;
+    const total = pastSessions.length;
+    let lowCount = 0;
+    let moderateCount = 0;
+    let urgentCount = 0;
+    let withPhotoCount = 0;
+
+    for (const s of pastSessions) {
+      const risk = (s.result?.riskLevel || "moderate").toLowerCase();
+      if (risk === "low") lowCount++;
+      else if (risk === "moderate" || risk === "medium") moderateCount++;
+      else if (risk === "high" || risk === "emergency") urgentCount++;
+
+      if (s.inspection?.images?.length > 0) withPhotoCount++;
+    }
+
+    const latest = pastSessions[0]?.createdAt;
+
+    return {
+      total,
+      lowCount,
+      moderateCount,
+      urgentCount,
+      withPhotoCount,
+      latestDateStr: latest ? formatSessionDate(latest, language) : null,
+    };
+  }, [pastSessions, language]);
+
   function handleInitiateScreening() {
     if (!isOnline) {
       showToast(copy.offlineAlert, "error");
@@ -270,19 +300,55 @@ export default function Home() {
                 <Stethoscope size={20} />
               </div>
             </div>
-            <p className="eyebrow">
-              <Activity size={14} className="eyebrow-icon" /> {copy.aiHealthScreening}
-            </p>
+            <div className="hero-top-badges">
+              <p className="eyebrow">
+                <Activity size={14} className="eyebrow-icon" /> {copy.aiHealthScreening}
+              </p>
+              <div className="hero-decision-badge" role="note">
+                <ShieldCheck size={13} aria-hidden="true" />
+                <span>{copy.decisionSupportDisclaimer}</span>
+              </div>
+            </div>
             <h1>{copy.howAreYouFeeling}</h1>
             <p>{copy.howAreYouFeelingHint}</p>
-            <button
-              type="button"
-              className="accent-button hero-cta"
-              onClick={handleInitiateScreening}
-            >
-              <span>{copy.startInspection}</span>
-              <ArrowRight size={18} className="cta-arrow" />
-            </button>
+            <div className="hero-cta-wrapper">
+              <button
+                type="button"
+                className="accent-button hero-cta"
+                onClick={handleInitiateScreening}
+              >
+                <span>{copy.startScreeningCta}</span>
+                <ArrowRight size={18} className="cta-arrow" />
+              </button>
+              <span className="hero-input-methods-note">
+                {copy.homeInputMethodsNotice}
+              </span>
+            </div>
+          </section>
+
+          {/* 3-Step Workflow Preview */}
+          <section className="workflow-preview-section" aria-label="How SwasthAI works">
+            <div className="workflow-step-card">
+              <div className="workflow-step-num" aria-hidden="true">1</div>
+              <div className="workflow-step-text">
+                <strong>{copy.workflowStep1Title}</strong>
+                <p>{copy.workflowStep1Desc}</p>
+              </div>
+            </div>
+            <div className="workflow-step-card">
+              <div className="workflow-step-num" aria-hidden="true">2</div>
+              <div className="workflow-step-text">
+                <strong>{copy.workflowStep2Title}</strong>
+                <p>{copy.workflowStep2Desc}</p>
+              </div>
+            </div>
+            <div className="workflow-step-card">
+              <div className="workflow-step-num" aria-hidden="true">3</div>
+              <div className="workflow-step-text">
+                <strong>{copy.workflowStep3Title}</strong>
+                <p>{copy.workflowStep3Desc}</p>
+              </div>
+            </div>
           </section>
 
           <div className="feature-chips-row" role="region" aria-label="Key features">
@@ -331,6 +397,45 @@ export default function Home() {
                 </button>
               )}
             </div>
+
+            {/* Dashboard Screening Statistics (Ground in actual pastSessions) */}
+            {screeningStats && (
+              <section className="dashboard-stats-card" aria-label={copy.screeningStatsTitle}>
+                <div className="stats-card-header">
+                  <span className="stats-card-title">
+                    <Activity size={15} className="stats-icon" aria-hidden="true" />
+                    <strong>{copy.screeningStatsTitle}</strong>
+                  </span>
+                  {screeningStats.latestDateStr && (
+                    <span className="stats-latest-badge">
+                      {copy.lastScreenedStat}: {screeningStats.latestDateStr}
+                    </span>
+                  )}
+                </div>
+                <div className="stats-metrics-grid">
+                  <div className="stat-metric-box">
+                    <span className="stat-metric-value">{screeningStats.total}</span>
+                    <span className="stat-metric-label">{copy.totalScreeningsStat}</span>
+                  </div>
+                  <div className="stat-metric-box low">
+                    <span className="stat-metric-value">{screeningStats.lowCount}</span>
+                    <span className="stat-metric-label">{copy.lowRiskStat}</span>
+                  </div>
+                  <div className="stat-metric-box moderate">
+                    <span className="stat-metric-value">{screeningStats.moderateCount}</span>
+                    <span className="stat-metric-label">{copy.moderateRiskStat}</span>
+                  </div>
+                  <div className="stat-metric-box urgent">
+                    <span className="stat-metric-value">{screeningStats.urgentCount}</span>
+                    <span className="stat-metric-label">{copy.urgentRiskStat}</span>
+                  </div>
+                </div>
+                <p className="stats-medical-note">
+                  <ShieldCheck size={13} aria-hidden="true" />
+                  <span>{copy.statsDisclaimer}</span>
+                </p>
+              </section>
+            )}
 
             {count > 0 && (
               <div className="history-toolbar">
@@ -403,6 +508,10 @@ export default function Home() {
                 </div>
                 <h3>{copy.noScreeningsTitle}</h3>
                 <p>{copy.noScreeningsDesc}</p>
+                <div className="empty-stats-hint" role="note">
+                  <Activity size={14} aria-hidden="true" />
+                  <span>{copy.emptyStatsDesc}</span>
+                </div>
                 <button
                   type="button"
                   className="secondary-button empty-cta"

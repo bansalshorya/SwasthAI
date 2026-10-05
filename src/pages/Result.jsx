@@ -11,10 +11,14 @@ import {
   Eye,
   FileText,
   HeartPulse,
+  HelpCircle,
+  Home,
   Pencil,
   PhoneCall,
   Printer,
+  RotateCcw,
   Share2,
+  ShieldCheck,
   Stethoscope,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -22,7 +26,7 @@ import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
-import { hydrateSession } from "../services/aiSkillEngine";
+import { hydrateSession, sanitizeDegreeSymbols } from "../services/aiSkillEngine";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
 
@@ -47,7 +51,7 @@ function BulletList({ items = [] }) {
   return (
     <ul className="bullet-list">
       {items.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
+        <li key={`${item}-${index}`}>{sanitizeDegreeSymbols(item)}</li>
       ))}
     </ul>
   );
@@ -87,6 +91,119 @@ function CollapsibleCard({
       {open && (
         <div id={`${id}-content`} className="section-collapsible-content">
           {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function WhyThisResultCard({ session, result, copy, language }) {
+  const [open, setOpen] = useState(true);
+  const symptoms = session?.inspection?.answers?.symptoms;
+  const topCondition = result?.possibleConditions?.[0];
+  const doctor = result?.doctorRecommendation;
+  const imageConsistency = result?.imageConsistency;
+  const durationAnswer = session?.inspection?.answers?.duration;
+  const severityAnswer = session?.inspection?.answers?.severity;
+  const progressionAnswer = session?.inspection?.answers?.progression;
+
+  const durationQuestion = APP_CONFIG.questions.find((q) => q.key === "duration");
+  const durationOption = durationQuestion?.options?.find((o) => o.value === durationAnswer);
+  const durationLabel = durationOption ? localize(durationOption.label, language) : durationAnswer;
+
+  const severityQuestion = APP_CONFIG.questions.find((q) => q.key === "severity");
+  const severityOption = severityQuestion?.options?.find((o) => o.value === severityAnswer);
+  const severityLabel = severityOption ? localize(severityOption.label, language) : severityAnswer;
+
+  const progressionQuestion = APP_CONFIG.questions.find((q) => q.key === "progression");
+  const progressionOption = progressionQuestion?.options?.find((o) => o.value === progressionAnswer);
+  const progressionLabel = progressionOption ? localize(progressionOption.label, language) : progressionAnswer;
+
+  return (
+    <section className="result-card why-result-card" id="section-why-result">
+      <button
+        type="button"
+        className="section-title-toggle"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-controls="why-result-content"
+      >
+        <div className="section-title">
+          <HelpCircle size={20} className="why-result-icon" aria-hidden="true" />
+          <h2>{copy.whyThisResultTitle}</h2>
+        </div>
+        <span className="toggle-affordance">
+          <span className="toggle-text">{open ? copy.collapseSection : copy.expandSection}</span>
+          {open ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+        </span>
+      </button>
+
+      {open && (
+        <div id="why-result-content" className="section-collapsible-content why-result-content">
+          <p className="why-result-lead">{copy.whyThisResultSubtitle}</p>
+
+          <div className="why-result-grid">
+            {symptoms && (
+              <div className="why-result-box">
+                <div className="why-factor-header">
+                  <HeartPulse size={15} aria-hidden="true" />
+                  <strong>{copy.reportedSymptomsFactor}</strong>
+                </div>
+                <p>{sanitizeDegreeSymbols(symptoms)}</p>
+              </div>
+            )}
+
+            {(durationLabel || severityLabel || progressionLabel) && (
+              <div className="why-result-box">
+                <div className="why-factor-header">
+                  <FileText size={15} aria-hidden="true" />
+                  <strong>{copy.clinicalTimelineFactor}</strong>
+                </div>
+                <p>
+                  {[
+                    durationLabel ? `${localize({ hi: "अवधि", en: "Timeline" }, language)}: ${durationLabel}` : "",
+                    severityLabel ? `${localize({ hi: "प्रभाव", en: "Impact" }, language)}: ${severityLabel}` : "",
+                    progressionLabel ? `${localize({ hi: "प्रवृत्ति", en: "Trend" }, language)}: ${progressionLabel}` : "",
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+            )}
+
+            {imageConsistency && (
+              <div className="why-result-box">
+                <div className="why-factor-header">
+                  <Eye size={15} aria-hidden="true" />
+                  <strong>{copy.visualContextFactor}</strong>
+                </div>
+                <p>{sanitizeDegreeSymbols(imageConsistency.explanation)}</p>
+              </div>
+            )}
+          </div>
+
+          {topCondition?.reason && (
+            <div className="why-rationale-block">
+              <strong>{copy.patternRationaleTitle}:</strong>
+              <p>{sanitizeDegreeSymbols(topCondition.reason)}</p>
+            </div>
+          )}
+
+          {doctor?.timeframe && (
+            <div className="why-rationale-block next-step">
+              <strong>{copy.whyNextStepTitle}:</strong>
+              <p>
+                {sanitizeDegreeSymbols(
+                  language === "hi"
+                    ? `लक्षणों की गंभीरता और स्थिति को देखते हुए ${doctor.specialist || "चिकित्सक"} से ${doctor.timeframe} संपर्क करने का सुझाव दिया गया है।`
+                    : `Given your symptom severity and timeline, consultation with ${doctor.specialist ? "a " + doctor.specialist : "a clinician"} is advised (${doctor.timeframe}).`
+                )}
+              </p>
+            </div>
+          )}
+
+          <div className="why-result-footnote" role="note">
+            <ShieldCheck size={14} aria-hidden="true" />
+            <span>{copy.whyResultNotice}</span>
+          </div>
         </div>
       )}
     </section>
@@ -249,212 +366,221 @@ export default function Result() {
         <span style={{ width: "100%" }} />
       </div>
 
-      <section className={`result-hero ${result.riskLevel || "moderate"}`}>
-        <div className="result-status-row">
-          <span className="result-check">
-            <HeartPulse size={24} aria-hidden="true" />
-          </span>
-          <div className="result-status-tags">
-            {session?.createdAt && (
-              <span className="historical-screening-badge">
-                <Calendar size={12} aria-hidden="true" />
-                <span>{formatReportDate(session.createdAt, language)}</span>
+      <div className="result-dashboard-grid">
+        <div className="result-col-primary">
+          <section className={`result-hero ${result.riskLevel || "moderate"}`}>
+            <div className="result-status-row">
+              <span className="result-check">
+                <HeartPulse size={24} aria-hidden="true" />
               </span>
-            )}
-            {result.prototype && (
-              <span className="prototype-badge">{copy.demoHint}</span>
-            )}
-          </div>
-        </div>
-        <p className="eyebrow">{copy.possibleOnly}</p>
-        <h1>
-          {riskLabel} {copy.risk}
-        </h1>
-        <p>{result.summary}</p>
-        <div className="result-meta">
-          <span>
-            {copy.risk}: {riskLabel}
-          </span>
-          <span>
-            {copy.confidence}: {copy[result.confidence] ?? result.confidence}
-          </span>
-        </div>
-      </section>
-
-      {reportedSymptoms && (
-        <div className="result-symptoms-bar">
-          <div className="result-symptoms-text">
-            <strong>{copy.symptomsLabel}:</strong> {reportedSymptoms}
-          </div>
-          <button
-            type="button"
-            className="inline-edit-btn no-print"
-            onClick={() => navigate("/symptoms")}
-            aria-label={copy.editSymptoms}
-            title={copy.editSymptoms}
-          >
-            <Pencil size={14} aria-hidden="true" />
-          </button>
-        </div>
-      )}
-
-      {/* Clinical Context Review (Answers to Questions) */}
-      {contextItems.length > 0 && (
-        <CollapsibleCard
-          id="section-context"
-          title={copy.clinicalContextTitle}
-          icon={FileText}
-          defaultOpen={false}
-          collapseLabel={copy.collapseSection}
-          expandLabel={copy.expandSection}
-        >
-          <div className="clinical-answers-grid">
-            {contextItems.map((item) => (
-              <div key={item.key} className="clinical-answer-box">
-                <span className="clinical-answer-label">{item.label}</span>
-                <strong className="clinical-answer-value">{item.value}</strong>
+              <div className="result-status-tags">
+                {session?.createdAt && (
+                  <span className="historical-screening-badge">
+                    <Calendar size={12} aria-hidden="true" />
+                    <span>{formatReportDate(session.createdAt, language)}</span>
+                  </span>
+                )}
+                {result.prototype && (
+                  <span className="prototype-badge">{copy.demoHint}</span>
+                )}
               </div>
-            ))}
-          </div>
-        </CollapsibleCard>
-      )}
-
-      {/* Emergency Call Action: Prominent and immediately accessible */}
-      {isHighRisk && (
-        <a className="emergency-call compact" href="tel:112">
-          <PhoneCall size={19} aria-hidden="true" />
-          <span>{copy.callNow}</span>
-        </a>
-      )}
-
-      {/* Possible Conditions: Core finding */}
-      <section className="result-section">
-        <div className="section-title">
-          <Stethoscope size={20} aria-hidden="true" />
-          <h2>{localize(APP_CONFIG.results.possibleTitle, language)}</h2>
-        </div>
-        <div className="condition-list">
-          {result.possibleConditions?.map((condition, index) => (
-            <article className="condition-card" key={`${condition.name}-${index}`}>
-              <div className="condition-rank">{index + 1}</div>
-              <div>
-                <div className="condition-heading">
-                  <h3>{condition.name}</h3>
-                  <span>{copy[condition.confidence] ?? condition.confidence}</span>
-                </div>
-                <p>{condition.reason}</p>
-                <div className="symptom-tags">
-                  {condition.commonSymptoms?.map((symptom) => (
-                    <span key={symptom}>{symptom}</span>
-                  ))}
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* Reasons & Evidence (Collapsible) */}
-      <CollapsibleCard
-        id="section-evidence"
-        title={localize(APP_CONFIG.results.reasonsTitle, language)}
-        icon={CheckCircle2}
-        defaultOpen={true}
-        collapseLabel={copy.collapseSection}
-        expandLabel={copy.expandSection}
-      >
-        <BulletList items={result.evidence} />
-        {(result.imageConsistency || result.imageAssessment) && (
-          <div className={`image-consistency-card image-status-${imageConsistencyStatus}`}>
-            <div className="image-consistency-heading">
-              <span className="image-consistency-title">
-                <Eye size={17} aria-hidden="true" />
-                <strong>{copy.imageConsistencyTitle}</strong>
-              </span>
-              <span className="image-consistency-badge">{imageConsistencyLabel}</span>
             </div>
-            {result.imageConsistency?.explanation && (
-              <p>{result.imageConsistency.explanation}</p>
-            )}
-            {result.imageAssessment && (
-              <div className="image-consistency-detail">
-                <strong>{copy.imageObserved}:</strong> {result.imageAssessment}
+            <p className="eyebrow">{copy.possibleOnly}</p>
+            <h1>
+              {riskLabel} {copy.risk}
+            </h1>
+            <p>{sanitizeDegreeSymbols(result.summary)}</p>
+            <div className="result-meta">
+              <span>
+                {copy.risk}: {riskLabel}
+              </span>
+              <span>
+                {copy.confidence}: {copy[result.confidence] ?? result.confidence}
+              </span>
+            </div>
+          </section>
+
+          {reportedSymptoms && (
+            <div className="result-symptoms-bar">
+              <div className="result-symptoms-text">
+                <strong>{copy.symptomsLabel}:</strong> {sanitizeDegreeSymbols(reportedSymptoms)}
+              </div>
+              <button
+                type="button"
+                className="inline-edit-btn no-print"
+                onClick={() => navigate("/symptoms")}
+                aria-label={copy.editSymptoms}
+                title={copy.editSymptoms}
+              >
+                <Pencil size={14} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
+          {/* Why This Result: Clinical Reasoning Synthesis */}
+          <WhyThisResultCard session={session} result={result} copy={copy} language={language} />
+
+          {/* Possible Conditions: Core finding */}
+          <section className="result-section">
+            <div className="section-title">
+              <Stethoscope size={20} aria-hidden="true" />
+              <h2>{localize(APP_CONFIG.results.possibleTitle, language)}</h2>
+            </div>
+            <div className="condition-list">
+              {result.possibleConditions?.map((condition, index) => (
+                <article className="condition-card" key={`${condition.name}-${index}`}>
+                  <div className="condition-rank">{index + 1}</div>
+                  <div>
+                    <div className="condition-heading">
+                      <h3>{condition.name}</h3>
+                      <span>{copy[condition.confidence] ?? condition.confidence}</span>
+                    </div>
+                    <p>{sanitizeDegreeSymbols(condition.reason)}</p>
+                    <div className="symptom-tags">
+                      {condition.commonSymptoms?.map((symptom) => (
+                        <span key={symptom}>{sanitizeDegreeSymbols(symptom)}</span>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          {/* Reasons & Evidence (Collapsible) */}
+          <CollapsibleCard
+            id="section-evidence"
+            title={localize(APP_CONFIG.results.reasonsTitle, language)}
+            icon={CheckCircle2}
+            defaultOpen={true}
+            collapseLabel={copy.collapseSection}
+            expandLabel={copy.expandSection}
+          >
+            <BulletList items={result.evidence} />
+            {(result.imageConsistency || result.imageAssessment) && (
+              <div className={`image-consistency-card image-status-${imageConsistencyStatus}`}>
+                <div className="image-consistency-heading">
+                  <span className="image-consistency-title">
+                    <Eye size={17} aria-hidden="true" />
+                    <strong>{copy.imageConsistencyTitle}</strong>
+                  </span>
+                  <span className="image-consistency-badge">{imageConsistencyLabel}</span>
+                </div>
+                {result.imageConsistency?.explanation && (
+                  <p>{sanitizeDegreeSymbols(result.imageConsistency.explanation)}</p>
+                )}
+                {result.imageAssessment && (
+                  <div className="image-consistency-detail">
+                    <strong>{copy.imageObserved}:</strong> {sanitizeDegreeSymbols(result.imageAssessment)}
+                  </div>
+                )}
+                {result.imageConsistency?.recommendedAction && (
+                  <div className="image-consistency-action">
+                    <strong>{copy.imageNextStep}:</strong> {sanitizeDegreeSymbols(result.imageConsistency.recommendedAction)}
+                  </div>
+                )}
               </div>
             )}
-            {result.imageConsistency?.recommendedAction && (
-              <div className="image-consistency-action">
-                <strong>{copy.imageNextStep}:</strong> {result.imageConsistency.recommendedAction}
+          </CollapsibleCard>
+
+          {/* Clinical Context Review (Answers to Questions) */}
+          {contextItems.length > 0 && (
+            <CollapsibleCard
+              id="section-context"
+              title={copy.clinicalContextTitle}
+              icon={FileText}
+              defaultOpen={false}
+              collapseLabel={copy.collapseSection}
+              expandLabel={copy.expandSection}
+            >
+              <div className="clinical-answers-grid">
+                {contextItems.map((item) => (
+                  <div key={item.key} className="clinical-answer-box">
+                    <span className="clinical-answer-label">{item.label}</span>
+                    <strong className="clinical-answer-value">{item.value}</strong>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        )}
-      </CollapsibleCard>
-
-      {/* Recommendations & Self-Care (Collapsible) */}
-      <CollapsibleCard
-        id="section-care"
-        title={localize(APP_CONFIG.results.recommendationsTitle, language)}
-        icon={HeartPulse}
-        className="care-card"
-        defaultOpen={true}
-        collapseLabel={copy.collapseSection}
-        expandLabel={copy.expandSection}
-      >
-        <BulletList items={result.homeCare} />
-      </CollapsibleCard>
-
-      {/* Diet & Hydration (Collapsible) */}
-      <CollapsibleCard
-        id="section-diet"
-        title={localize(APP_CONFIG.results.dietTitle, language)}
-        icon={Apple}
-        className="diet-card"
-        defaultOpen={true}
-        collapseLabel={copy.collapseSection}
-        expandLabel={copy.expandSection}
-      >
-        <div className="diet-grid">
-          <div>
-            <strong>{copy.eat}</strong>
-            <BulletList items={result.dietPlan?.eat} />
-          </div>
-          <div>
-            <strong>{copy.avoid}</strong>
-            <BulletList items={result.dietPlan?.avoid} />
-          </div>
+            </CollapsibleCard>
+          )}
         </div>
-      </CollapsibleCard>
 
-      {/* Symptoms to Monitor (Collapsible) */}
-      <CollapsibleCard
-        id="section-monitor"
-        title={localize(APP_CONFIG.results.monitorTitle, language)}
-        icon={Eye}
-        defaultOpen={true}
-        collapseLabel={copy.collapseSection}
-        expandLabel={copy.expandSection}
-      >
-        <BulletList items={result.monitorSymptoms} />
-      </CollapsibleCard>
+        <div className="result-col-secondary">
+          {/* Red Flags / Emergency Warnings: Non-collapsible and high-visibility */}
+          <section className="result-card red-flag-card" role="region" aria-label={localize(APP_CONFIG.results.redFlagsTitle, language)}>
+            <div className="section-title">
+              <AlertTriangle size={20} aria-hidden="true" />
+              <h2>{localize(APP_CONFIG.results.redFlagsTitle, language)}</h2>
+            </div>
+            <BulletList items={result.redFlags} />
+          </section>
 
-      {/* Red Flags / Emergency Warnings: Non-collapsible and high-visibility */}
-      <section className="result-card red-flag-card" role="region" aria-label={localize(APP_CONFIG.results.redFlagsTitle, language)}>
-        <div className="section-title">
-          <AlertTriangle size={20} aria-hidden="true" />
-          <h2>{localize(APP_CONFIG.results.redFlagsTitle, language)}</h2>
+          {/* Emergency Call Action: Prominent and immediately accessible */}
+          {isHighRisk && (
+            <a className="emergency-call compact" href="tel:112">
+              <PhoneCall size={19} aria-hidden="true" />
+              <span>{copy.callNow}</span>
+            </a>
+          )}
+
+          {/* Doctor Consultation Recommendation: Non-collapsible */}
+          <section className="doctor-card">
+            <Stethoscope size={22} aria-hidden="true" />
+            <div>
+              <span>{copy.doctorConsultRecommendation || localize(APP_CONFIG.results.doctorTitle, language)}</span>
+              <strong>{result.doctorRecommendation?.specialist}</strong>
+              <p>{result.doctorRecommendation?.timeframe}</p>
+            </div>
+          </section>
+
+          {/* Recommendations & Self-Care (Collapsible) */}
+          <CollapsibleCard
+            id="section-care"
+            title={localize(APP_CONFIG.results.recommendationsTitle, language)}
+            icon={HeartPulse}
+            className="care-card"
+            defaultOpen={true}
+            collapseLabel={copy.collapseSection}
+            expandLabel={copy.expandSection}
+          >
+            <BulletList items={result.homeCare} />
+          </CollapsibleCard>
+
+          {/* Diet & Hydration (Collapsible) */}
+          <CollapsibleCard
+            id="section-diet"
+            title={localize(APP_CONFIG.results.dietTitle, language)}
+            icon={Apple}
+            className="diet-card"
+            defaultOpen={true}
+            collapseLabel={copy.collapseSection}
+            expandLabel={copy.expandSection}
+          >
+            <div className="diet-grid">
+              <div>
+                <strong>{copy.eat}</strong>
+                <BulletList items={result.dietPlan?.eat} />
+              </div>
+              <div>
+                <strong>{copy.avoid}</strong>
+                <BulletList items={result.dietPlan?.avoid} />
+              </div>
+            </div>
+          </CollapsibleCard>
+
+          {/* Symptoms to Monitor (Collapsible) */}
+          <CollapsibleCard
+            id="section-monitor"
+            title={localize(APP_CONFIG.results.monitorTitle, language)}
+            icon={Eye}
+            defaultOpen={true}
+            collapseLabel={copy.collapseSection}
+            expandLabel={copy.expandSection}
+          >
+            <BulletList items={result.monitorSymptoms} />
+          </CollapsibleCard>
         </div>
-        <BulletList items={result.redFlags} />
-      </section>
-
-      {/* Doctor Consultation Recommendation: Non-collapsible */}
-      <section className="doctor-card">
-        <Stethoscope size={22} aria-hidden="true" />
-        <div>
-          <span>{localize(APP_CONFIG.results.doctorTitle, language)}</span>
-          <strong>{result.doctorRecommendation?.specialist}</strong>
-          <p>{result.doctorRecommendation?.timeframe}</p>
-        </div>
-      </section>
+      </div>
 
       <p className="disclaimer no-print">
         {result.disclaimer || localize(APP_CONFIG.results.disclaimer, language)}
@@ -465,9 +591,20 @@ export default function Result() {
         <p>{copy.printDisclaimer}</p>
       </div>
 
-      <button type="button" className="primary-button no-print" onClick={restart}>
-        {copy.newInspection}
-      </button>
+      <div className="result-actions-row no-print">
+        <button type="button" className="primary-button" onClick={restart}>
+          <RotateCcw size={16} aria-hidden="true" />
+          <span>{copy.newScreeningBtn || copy.newInspection}</span>
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => navigate("/home")}
+        >
+          <Home size={16} aria-hidden="true" />
+          <span>{copy.returnHomeBtn || copy.home}</span>
+        </button>
+      </div>
     </main>
   );
 }
