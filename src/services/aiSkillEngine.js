@@ -1,8 +1,8 @@
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
-import { localizeConditionName, localizeMedicalText, localizeSymptoms } from "./medicalTranslation";
+import { localizeConditionName, localizeMedicalText, localizeSymptoms, sanitizeDegreeSymbols } from "./medicalTranslation";
 
-export { localizeConditionName, localizeMedicalText, localizeSymptoms };
+export { localizeConditionName, localizeMedicalText, localizeSymptoms, sanitizeDegreeSymbols };
 
 export function buildScreeningPayload(session) {
   const language = session.language ?? APP_CONFIG.app.defaultLanguage;
@@ -158,17 +158,17 @@ function validateResult(result, { imageCount = 0, language = "en" } = {}) {
     confidence,
     possibleConditions,
     doctorRecommendation,
-    evidence: Array.isArray(result.evidence) ? result.evidence : [],
-    imageAssessment: result.imageAssessment || "",
+    evidence: Array.isArray(result.evidence) ? result.evidence.map(sanitizeDegreeSymbols) : [],
+    imageAssessment: sanitizeDegreeSymbols(result.imageAssessment || ""),
     imageConsistency,
-    homeCare: Array.isArray(result.homeCare) ? result.homeCare : [],
+    homeCare: Array.isArray(result.homeCare) ? result.homeCare.map(sanitizeDegreeSymbols) : [],
     dietPlan: {
-      eat: Array.isArray(result.dietPlan?.eat) ? result.dietPlan.eat : [],
-      avoid: Array.isArray(result.dietPlan?.avoid) ? result.dietPlan.avoid : [],
+      eat: Array.isArray(result.dietPlan?.eat) ? result.dietPlan.eat.map(sanitizeDegreeSymbols) : [],
+      avoid: Array.isArray(result.dietPlan?.avoid) ? result.dietPlan.avoid.map(sanitizeDegreeSymbols) : [],
     },
-    monitorSymptoms: Array.isArray(result.monitorSymptoms) ? result.monitorSymptoms : [],
-    redFlags: Array.isArray(result.redFlags) ? result.redFlags : [],
-    summary: result.summary || "",
+    monitorSymptoms: Array.isArray(result.monitorSymptoms) ? result.monitorSymptoms.map(sanitizeDegreeSymbols) : [],
+    redFlags: Array.isArray(result.redFlags) ? result.redFlags.map(sanitizeDegreeSymbols) : [],
+    summary: sanitizeDegreeSymbols(result.summary || ""),
   };
 }
 
@@ -247,11 +247,11 @@ function buildDemoResult(session) {
       ? { eat: ["पानी और हल्के तरल", "सहन होने पर सादा, संतुलित भोजन"], avoid: ["शराब", "बहुत तला या मसालेदार भोजन यदि पेट खराब है"] }
       : { eat: ["Water and light fluids", "Plain, balanced meals as tolerated"], avoid: ["Alcohol", "Very oily or spicy food when the stomach is upset"] },
     monitorSymptoms: isHindi
-      ? ["लक्षण तेजी से बढ़ना", "बुखार कई दिन रहना", "पानी या भोजन न रख पाना", "नई सूजन या फैलती लालिमा"]
-      : ["Symptoms worsening quickly", "Fever lasting several days", "Unable to keep fluids down", "New swelling or spreading redness"],
+      ? ["लक्षण तेजी से बढ़ना", "102°F (38.9°C) से अधिक बुखार", "पानी या भोजन न रख पाना", "नई सूजन या फैलती लालिमा"]
+      : ["Symptoms worsening quickly", "Fever exceeding 102°F (38.9°C)", "Unable to keep fluids down", "New swelling or spreading redness"],
     redFlags: isHindi
-      ? ["सांस लेने में कठिनाई", "सीने में दर्द", "बेहोशी या भ्रम", "तेज़ रक्तस्राव या अचानक कमजोरी"]
-      : ["Difficulty breathing", "Chest pain", "Fainting or confusion", "Heavy bleeding or sudden weakness"],
+      ? ["सांस लेने में कठिनाई", "सीने में दर्द", "103°F (39.4°C) से अधिक तेज़ बुखार जो कम न हो रहा हो", "बेहोशी या भ्रम", "तेज़ रक्तस्राव या अचानक कमजोरी"]
+      : ["Difficulty breathing", "Chest pain", "High fever over 103°F (39.4°C) not responding to medication", "Fainting or confusion", "Heavy bleeding or sudden weakness"],
     doctorRecommendation: isHindi
       ? { specialist: "प्राथमिक देखभाल डॉक्टर या सामान्य चिकित्सक", timeframe: riskLevel === "high" ? "आज ही सलाह लें" : riskLevel === "moderate" ? "24 घंटों के भीतर सलाह लें" : "यदि 2–3 दिनों में सुधार न हो तो सलाह लें" }
       : { specialist: "Primary-care doctor or general physician", timeframe: riskLevel === "high" ? "Seek advice today" : riskLevel === "moderate" ? "Seek advice within 24 hours" : "Seek advice if there is no improvement in 2–3 days" },
