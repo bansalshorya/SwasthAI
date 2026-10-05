@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const viteEntry = fileURLToPath(new URL("../node_modules/vite/bin/vite.js", import.meta.url));
 const children = [
   spawn(process.execPath, ["--env-file-if-exists=.env", "server/index.mjs"], { stdio: "inherit" }),
-  spawn(npmCommand, ["run", "dev"], { stdio: "inherit" }),
+  spawn(process.execPath, [viteEntry], { stdio: "inherit" }),
 ];
 
 let stopping = false;

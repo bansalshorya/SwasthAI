@@ -13,8 +13,10 @@ The system is deliberately positioned as a **screening and decision-support tool
 1. Copy `.env.example` to `.env`.
 2. Put your Groq key in `GROQ_API_KEY`. Keep it server-side and never rename it to a `VITE_*` variable.
 3. Install dependencies with `npm install`.
-4. Run the frontend and API together with `npm run dev:full`.
+4. Run the frontend and API together with `npm run dev`.
 5. Open the Vite URL shown in the terminal (normally `http://localhost:5173`). Vite forwards `/api/*` to the local server on port `8787`.
+
+Use `npm run dev:web` only when you intentionally want the Vite frontend without the local API. `npm run dev:full` remains available as an alias for the complete development stack.
 
 On Windows PowerShell, use `npm.cmd` in place of `npm` if the system execution policy blocks `npm.ps1`.
 

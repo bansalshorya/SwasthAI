@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node server/dev.mjs",
+    "dev:web": "vite",
     "dev:full": "node server/dev.mjs",
     "api": "node --env-file-if-exists=.env server/index.mjs",
     "build": "vite build",
