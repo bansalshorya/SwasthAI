@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Apple,
@@ -19,14 +19,20 @@ import {
   RotateCcw,
   Share2,
   ShieldCheck,
+  Volume2,
+  VolumeX,
   Stethoscope,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
+import { FOLLOW_UP_BY_KEY } from "../config/followUpQuestions";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import { hydrateSession, sanitizeDegreeSymbols } from "../services/aiSkillEngine";
+import { compareScreenings } from "../services/progress";
+import { stopSpeaking } from "../services/speech";
+import DoctorReport from "../components/DoctorReport";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
 
@@ -212,10 +218,15 @@ function WhyThisResultCard({ session, result, copy, language }) {
 
 export default function Result() {
   const navigate = useNavigate();
-  const { language, activeSession, startInspection, showToast } = useApp();
+  const { language, activeSession, pastSessions, startInspection, startFollowUp, speakText, muted, showToast } = useApp();
+  const [isReading, setIsReading] = useState(false);
   const copy = ui(language);
   const session = activeSession ? hydrateSession(activeSession, language) : null;
   const result = session?.result;
+  const parent = session?.parentSessionId ? pastSessions.find((item) => item.sessionId === session.parentSessionId) : null;
+  const comparison = compareScreenings(parent, session);
+
+  useEffect(() => () => stopSpeaking(), []);
 
   if (!result) {
     return (
@@ -239,6 +250,21 @@ export default function Result() {
 
   function handlePrint() {
     window.print();
+  }
+
+  function toggleReading() {
+    if (isReading) { stopSpeaking(); setIsReading(false); return; }
+    if (muted) { showToast(copy.unmuteToRead, "info"); return; }
+    const speech = [result.summary, ...(result.redFlags || []), result.doctorRecommendation?.specialist, result.doctorRecommendation?.timeframe]
+      .filter(Boolean).join(". ");
+    setIsReading(true);
+    speakText(speech, { onEnd: () => setIsReading(false) });
+  }
+
+  function beginFollowUp() {
+    stopSpeaking();
+    startFollowUp(session);
+    navigate("/symptoms");
   }
 
   async function handleShareOrCopy() {
@@ -296,7 +322,10 @@ export default function Result() {
   const imageConsistencyStatus = result.imageConsistency?.status || "not_provided";
   const imageConsistencyLabel = copy[`imageStatus_${imageConsistencyStatus}`] ?? imageConsistencyStatus;
 
-  const contextItems = (APP_CONFIG.questions || []).map((q) => {
+  const allQuestions = [...APP_CONFIG.questions, ...(session.inspection?.followUpIds || [])
+    .map((id) => FOLLOW_UP_BY_KEY.get(id)).filter(Boolean)
+    .map((item) => ({ ...item, key: `followUp_${item.key}` }))];
+  const contextItems = allQuestions.map((q) => {
     const rawVal = session?.inspection?.answers?.[q.key];
     if (!rawVal) return null;
     const option = q.options?.find((opt) => opt.value === rawVal);
@@ -344,11 +373,16 @@ export default function Result() {
           type="button"
           className="report-action-btn"
           onClick={handlePrint}
-          aria-label={copy.printReport}
-          title={copy.printReport}
+          aria-label={copy.savePdf}
+          title={copy.savePdf}
         >
           <Printer size={15} aria-hidden="true" />
-          <span>{copy.printReport}</span>
+          <span>{copy.savePdf}</span>
+        </button>
+        <button type="button" className="report-action-btn" onClick={toggleReading}
+          aria-label={isReading ? copy.stopReading : copy.readResults}>
+          {isReading ? <VolumeX size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}
+          <span>{isReading ? copy.stopReading : copy.readResults}</span>
         </button>
         <button
           type="button"
@@ -399,6 +433,25 @@ export default function Result() {
               </span>
             </div>
           </section>
+
+          {comparison && (
+            <section className="result-card progress-comparison-card" aria-label={copy.progressTrackerTitle}>
+              <div className="section-title"><HeartPulse size={19} aria-hidden="true" /><h2>{copy.progressTrackerTitle}</h2></div>
+              <p><strong>{copy.reportedChange}: {copy[`trend_${comparison.change}`]}</strong></p>
+              <p>{copy.progressComparisonHint}</p>
+              <div className="progress-comparison-grid">
+                {[parent, session].map((item, index) => <div key={item.sessionId}>
+                  <strong>{index === 0 ? copy.previousCheck : copy.currentCheck}</strong>
+                  <p>{formatReportDate(item.createdAt, language)}</p>
+                  <p>{copy.symptomsLabel}: {item.inspection?.answers?.symptoms}</p>
+                  <p>{copy.risk}: {copy[item.result?.riskLevel] || item.result?.riskLevel || copy.notProvided}</p>
+                  {(item.inspection?.images || []).map((photo, photoIndex) => (photo.dataUrl || photo.thumbnailDataUrl)
+                    ? <img key={photo.id || photoIndex} src={photo.dataUrl || photo.thumbnailDataUrl} alt={`${index === 0 ? copy.previousCheck : copy.currentCheck} ${photoIndex + 1}`} />
+                    : <p key={photo.id || photoIndex}>{copy.photoNotSaved}</p>)}
+                </div>)}
+              </div>
+            </section>
+          )}
 
           {reportedSymptoms && (
             <div className="result-symptoms-bar">
@@ -503,6 +556,14 @@ export default function Result() {
               </div>
             </CollapsibleCard>
           )}
+          {(session.inspection?.answers?.medications || session.inspection?.answers?.allergies || (session.inspection?.answers?.subjectRelation && session.inspection?.answers?.subjectRelation !== "self")) && (
+            <section className="result-card safety-context-result">
+              <div className="section-title"><FileText size={19} aria-hidden="true" /><h2>{copy.safetyContextTitle}</h2></div>
+              <p>{copy.caregiverTitle}: {copy[`relation_${session.inspection?.answers?.subjectRelation || "self"}`]}</p>
+              <p>{copy.currentMedicines}: {session.inspection?.answers?.medications || copy.notProvided}</p>
+              <p>{copy.knownAllergies}: {session.inspection?.answers?.allergies || copy.notProvided}</p>
+            </section>
+          )}
         </div>
 
         <div className="result-col-secondary">
@@ -582,6 +643,8 @@ export default function Result() {
         </div>
       </div>
 
+      <DoctorReport session={session} result={result} language={language} copy={copy} parent={parent} />
+
       <p className="disclaimer no-print">
         {result.disclaimer || localize(APP_CONFIG.results.disclaimer, language)}
       </p>
@@ -592,6 +655,11 @@ export default function Result() {
       </div>
 
       <div className="result-actions-row no-print">
+        {result.riskLevel !== "emergency" && result.riskLevel !== "high" && (
+          <button type="button" className="secondary-button" onClick={beginFollowUp}>
+            <HeartPulse size={16} aria-hidden="true" /><span>{result.riskLevel === "low" ? copy.repeatScreening : copy.repeatScreeningSoon}</span>
+          </button>
+        )}
         <button type="button" className="primary-button" onClick={restart}>
           <RotateCcw size={16} aria-hidden="true" />
           <span>{copy.newScreeningBtn || copy.newInspection}</span>

@@ -25,6 +25,14 @@ export function buildScreeningPayload(session) {
       question.key,
       answers[question.key] ?? null,
     ])),
+    context: {
+      subjectRelation: answers.subjectRelation ?? "self",
+      medications: answers.medications ?? "",
+      allergies: answers.allergies ?? "",
+    },
+    followUps: Object.fromEntries((session.inspection?.followUpIds || [])
+      .filter((id) => ["yes", "no", "unsure"].includes(answers[`followUp_${id}`]))
+      .map((id) => [id, answers[`followUp_${id}`]])),
     images: imagePayloads,
   };
 }

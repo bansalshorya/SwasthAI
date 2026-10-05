@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
+import { FOLLOW_UP_BY_KEY } from "../config/followUpQuestions";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
@@ -21,7 +22,7 @@ import { sanitizeDegreeSymbols } from "../services/aiSkillEngine";
 
 export default function Review() {
   const navigate = useNavigate();
-  const { language, activeSession, isOnline, showToast } = useApp();
+  const { language, activeSession, answerQuestion, isOnline, showToast } = useApp();
   const copy = ui(language);
 
   useEffect(() => {
@@ -36,7 +37,10 @@ export default function Review() {
   const symptoms = answers.symptoms?.trim() || "";
   const images = activeSession?.inspection?.images ?? [];
 
-  const questionsList = (APP_CONFIG.questions || []).map((q) => {
+  const questionsList = [...APP_CONFIG.questions, ...(activeSession?.inspection?.followUpIds || []).map((id) => {
+    const item = FOLLOW_UP_BY_KEY.get(id);
+    return item ? { ...item, key: `followUp_${id}` } : null;
+  }).filter(Boolean)].map((q) => {
     const rawVal = answers[q.key];
     const option = q.options?.find((opt) => opt.value === rawVal);
     return {
@@ -113,6 +117,24 @@ export default function Review() {
               <p className="review-empty-text">{copy.noSymptomsEntered}</p>
             )}
           </div>
+        </section>
+
+        <section className="review-card" aria-labelledby="heading-review-safety">
+          <div className="review-card-header">
+            <div className="review-card-title-wrap"><FileText size={18} aria-hidden="true" /><h2 id="heading-review-safety">{copy.safetyContextTitle}</h2></div>
+          </div>
+          <p className="review-subtitle">{copy.safetyContextHint}</p>
+          <div className="flow-field-grid">
+            <label>{copy.currentMedicines}
+              <textarea maxLength={500} rows={2} value={answers.medications || ""}
+                onChange={(event) => answerQuestion("medications", event.target.value)} placeholder={copy.optionalContextPlaceholder} />
+            </label>
+            <label>{copy.knownAllergies}
+              <textarea maxLength={500} rows={2} value={answers.allergies || ""}
+                onChange={(event) => answerQuestion("allergies", event.target.value)} placeholder={copy.optionalContextPlaceholder} />
+            </label>
+          </div>
+          <p className="review-subtitle">{copy.caregiverTitle}: {copy[`relation_${answers.subjectRelation || "self"}`]}</p>
         </section>
 
         {/* Section 2: Question Answers */}

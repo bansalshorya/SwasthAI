@@ -18,6 +18,8 @@ import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import {
   captureVideoFrame,
+  checkLocalPhotoQuality,
+  createThumbnailDataUrl,
   openCamera,
   pickFromGallery,
   processImageFile,
@@ -35,6 +37,8 @@ export default function Inspection() {
   const [index, setIndex] = useState(activeSession?.inspection?.images?.length ?? 0);
   const [mode, setMode] = useState("choice"); // "choice" | "camera" | "preview"
   const [preview, setPreview] = useState(null);
+  const [photoCheck, setPhotoCheck] = useState(null);
+  const [checkingPhoto, setCheckingPhoto] = useState(false);
   const [error, setError] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,6 +48,33 @@ export default function Inspection() {
   const step = APP_CONFIG.inspection.steps[Math.min(index, APP_CONFIG.inspection.steps.length - 1)];
   const images = activeSession?.inspection?.images ?? [];
 
+  useEffect(() => {
+    if (!preview) { setPhotoCheck(null); return; }
+    let cancelled = false;
+    const controller = new AbortController();
+    setCheckingPhoto(true);
+    async function check() {
+      const quality = await checkLocalPhotoQuality(preview);
+      try {
+        const response = await fetch("/api/photo-check", {
+          method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+          body: JSON.stringify({ language, symptoms: activeSession?.inspection?.answers?.symptoms || "", image: preview }),
+        });
+        if (!response.ok) throw new Error("Photo check unavailable");
+        const result = await response.json();
+        if (!cancelled) setPhotoCheck(result.status === "relevant" && (quality.dark || quality.blurry)
+          ? { status: "quality_warning", explanation: quality.dark ? copy.photoTooDark : copy.photoTooBlurry }
+          : result);
+      } catch {
+        if (!cancelled) setPhotoCheck(quality.dark || quality.blurry
+          ? { status: "quality_warning", explanation: quality.dark ? copy.photoTooDark : copy.photoTooBlurry }
+          : { status: "unavailable", explanation: copy.photoCheckUnavailable });
+      } finally { if (!cancelled) setCheckingPhoto(false); }
+    }
+    check();
+    return () => { cancelled = true; controller.abort(); };
+  }, [preview, activeSession?.inspection?.answers?.symptoms, language]);
+
   useEffect(() => () => stopCamera(streamRef.current), []);
 
   useEffect(() => {
@@ -52,6 +83,8 @@ export default function Inspection() {
 
   async function startCamera() {
     setError("");
+    setPreview(null);
+    setPhotoCheck(null);
     setMode("camera");
     await new Promise((resolve) => requestAnimationFrame(resolve));
     try {
@@ -150,15 +183,18 @@ export default function Inspection() {
     }
   }
 
-  function accept() {
+  async function accept() {
     if (!preview || isProcessing) return;
     setIsProcessing(true);
     try {
+      const thumbnailDataUrl = await createThumbnailDataUrl(preview);
       addImage({
         id: `${activeSession.sessionId}_${step.id}_${Date.now()}`,
         stepId: step.id,
         role: step.role,
         dataUrl: preview,
+        thumbnailDataUrl,
+        photoCheck,
         capturedAt: new Date().toISOString(),
       });
       setPreview(null);
@@ -228,15 +264,19 @@ export default function Inspection() {
           </div>
           <span className="camera-spacer" />
         </header>
+        <div className={`photo-check-panel ${photoCheck?.status || "checking"}`} role="status" aria-live="polite">
+          <strong>{copy.photoCheckTitle}</strong>
+          <span>{checkingPhoto ? copy.checkingPhoto : photoCheck?.explanation || copy.photoCheckUnavailable}</span>
+        </div>
         <footer className="camera-footer">
           <div className="two-buttons">
             <button className="secondary-dark" disabled={isProcessing} onClick={startCamera}>
               <RotateCcw size={18} />
               <span>{copy.retake}</span>
             </button>
-            <button className="success-button" disabled={isProcessing} onClick={accept}>
+            <button className="success-button" disabled={isProcessing || checkingPhoto} onClick={accept}>
               {isProcessing ? <Loader2 size={18} className="spin" /> : <Check size={18} />}
-              <span>{copy.usePhoto}</span>
+              <span>{["mismatch", "unclear", "quality_warning"].includes(photoCheck?.status) ? copy.keepPhotoAnyway : copy.usePhoto}</span>
             </button>
           </div>
         </footer>

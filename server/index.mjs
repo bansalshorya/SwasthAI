@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeScreening, resolveAIProvider, ScreeningError } from "./openaiScreening.mjs";
+import { checkPhoto, suggestFollowUps } from "./screeningAssist.mjs";
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = path.dirname(SERVER_DIR);
@@ -91,14 +92,18 @@ async function handleApi(request, response, pathname) {
     return true;
   }
 
-  if (pathname !== "/api/analyze") return false;
+  if (!["/api/analyze", "/api/follow-up", "/api/photo-check"].includes(pathname)) return false;
   if (request.method !== "POST") {
     sendJson(response, 405, { error: { code: "METHOD_NOT_ALLOWED", message: "Use POST for this endpoint." } });
     return true;
   }
 
   const body = await readJsonBody(request);
-  const result = await analyzeScreening(body.screening);
+  const result = pathname === "/api/follow-up"
+    ? await suggestFollowUps(body)
+    : pathname === "/api/photo-check"
+      ? await checkPhoto(body)
+      : await analyzeScreening(body.screening);
   sendJson(response, 200, result);
   return true;
 }

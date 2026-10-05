@@ -9,13 +9,20 @@ const STORAGE_VERSION = 1;
 const ACTIVE_SESSION_KEY = "swasthai_active_session_v1";
 const THEME_STORAGE_KEY = "swasthai_theme";
 
-function createSession(language) {
+function createSession(language, parent = null) {
   return {
-    sessionId: `session_${Date.now()}`,
+    sessionId: `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
     language,
+    parentSessionId: parent?.sessionId || null,
     subjectType: "health_screening",
-    inspection: { images: [], answers: {} },
+    inspection: { images: [], followUpIds: [], answers: parent ? {
+      symptoms: parent.inspection?.answers?.symptoms || "",
+      ageGroup: parent.inspection?.answers?.ageGroup || "",
+      subjectRelation: parent.inspection?.answers?.subjectRelation || "self",
+      medications: parent.inspection?.answers?.medications || "",
+      allergies: parent.inspection?.answers?.allergies || "",
+    } : {} },
     environment: { available: false },
     analysis: null,
     result: null,
@@ -192,9 +199,9 @@ export function AppProvider({ children }) {
   }, [activeSession]);
 
   const speakText = useCallback(
-    (text) => {
+    (text, options) => {
       if (muted) return;
-      speak(text, language).catch(console.warn);
+      speak(text, language, options).catch(console.warn);
     },
     [language, muted],
   );
@@ -204,6 +211,19 @@ export function AppProvider({ children }) {
     setActiveSession(session);
     return session;
   }, [language]);
+
+  const startFollowUp = useCallback((parent) => {
+    const session = createSession(language, parent);
+    setActiveSession(session);
+    return session;
+  }, [language]);
+
+  const setFollowUpIds = useCallback((ids) => {
+    setActiveSession((session) => session ? {
+      ...session,
+      inspection: { ...session.inspection, followUpIds: ids },
+    } : session);
+  }, []);
 
   const addImage = useCallback((image) => {
     setActiveSession((session) => ({
@@ -255,13 +275,16 @@ export function AppProvider({ children }) {
       createdAt: session.createdAt,
       language: session.language,
       subjectType: session.subjectType || "health_screening",
+      parentSessionId: session.parentSessionId || null,
       inspection: session.inspection ? {
         answers: session.inspection.answers || {},
+        followUpIds: session.inspection.followUpIds || [],
         images: (session.inspection.images || []).map((img) => ({
           id: img.id,
           stepId: img.stepId,
           role: img.role,
           capturedAt: img.capturedAt,
+          thumbnailDataUrl: img.thumbnailDataUrl,
         })),
       } : { answers: {}, images: [] },
       result: session.result || null,
@@ -353,6 +376,8 @@ export function AppProvider({ children }) {
     clearAllSessions,
     muted,
     startInspection,
+    startFollowUp,
+    setFollowUpIds,
     addImage,
     removeImage,
     answerQuestion,
@@ -381,6 +406,8 @@ export function AppProvider({ children }) {
     clearAllSessions,
     muted,
     startInspection,
+    startFollowUp,
+    setFollowUpIds,
     addImage,
     removeImage,
     answerQuestion,

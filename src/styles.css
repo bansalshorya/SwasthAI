@@ -2786,6 +2786,46 @@ html[data-theme="dark"] .result-actions-row .secondary-button:hover:not(:disable
   }
 }
 
+/* Screening extensions */
+.flow-context-card { padding: 16px; border: 1px solid var(--border-card); border-radius: 16px; background: var(--bg-card); }
+.report-action-bar { flex-wrap: wrap; }
+.flow-context-card p { margin: 6px 0 12px; color: var(--text-secondary); font-size: 13px; }
+.flow-choice-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.flow-choice-grid button { padding: 8px 12px; border: 1px solid var(--border-card); border-radius: 999px; background: var(--pill-bg); color: var(--text-primary); cursor: pointer; }
+.flow-choice-grid button.selected { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+.adaptive-question-tag { display: inline-block; margin-bottom: 12px; padding: 5px 10px; border-radius: 999px; background: var(--pill-bg); color: var(--brand-primary); font-size: 12px; font-weight: 700; }
+.flow-field-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 12px; }
+.flow-field-grid label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.flow-field-grid textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--border-card); border-radius: 10px; background: var(--bg-card); color: var(--text-primary); font: inherit; }
+.photo-check-panel { position: absolute; z-index: 4; left: 18px; right: 18px; bottom: 160px; display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; background: rgba(9, 38, 30, .93); color: #fff; font-size: 13px; line-height: 1.4; }
+.photo-check-panel.mismatch, .photo-check-panel.unclear, .photo-check-panel.quality_warning { background: rgba(112, 48, 17, .96); }
+.progress-comparison-card p { overflow-wrap: anywhere; }
+.progress-comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.progress-comparison-grid > div { padding: 12px; border: 1px solid var(--border-card); border-radius: 12px; background: var(--pill-bg); }
+.progress-comparison-grid img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; margin: 5px 5px 0 0; }
+.safety-context-result p { margin: 8px 0; overflow-wrap: anywhere; }
+.doctor-report-print { display: none; }
+@media (max-width: 560px) { .progress-comparison-grid { grid-template-columns: 1fr; } }
+@media print {
+  .result-dashboard-grid, .print-only-disclaimer { display: none !important; }
+  .doctor-report-print { display: block !important; color: #111; font-size: 11pt; line-height: 1.45; }
+  .doctor-report-print h1 { color: #0a5341; font-size: 17pt; margin: 0 0 5px; }
+  .doctor-report-section { break-inside: avoid; border-bottom: 1px solid #ddd; padding: 10px 0; }
+  .doctor-report-section h2 { font-size: 12pt; margin: 0 0 6px; color: #0a5341; }
+  .doctor-report-section h3 { font-size: 10pt; margin: 8px 0 3px; }
+  .doctor-report-section p { margin: 3px 0; overflow-wrap: anywhere; }
+  .doctor-report-section dl { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 15px; }
+  .doctor-report-section dl > div { display: flex; gap: 5px; }
+  .doctor-report-section dt { font-weight: 700; }
+  .doctor-report-section dd { margin: 0; }
+  .doctor-report-section ul { margin: 5px 0; padding-left: 20px; }
+  .doctor-report-photos { display: flex; flex-wrap: wrap; gap: 12px; }
+  .doctor-report-photos figure { margin: 0; width: 150px; }
+  .doctor-report-photos img { display: block; width: 150px; height: 130px; object-fit: contain; border: 1px solid #ddd; }
+  .doctor-report-photos figcaption { font-size: 8pt; }
+  .doctor-report-disclaimer { margin-top: 12px; font-size: 9pt; color: #444; }
+}
+
 @media (max-width: 440px) {
   .modal-actions {
     flex-direction: row;

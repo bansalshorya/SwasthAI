@@ -11,9 +11,10 @@ import ThemeToggle from "../components/ThemeToggle";
 
 export default function SymptomIntake() {
   const navigate = useNavigate();
-  const { language, activeSession, answerQuestion } = useApp();
+  const { language, activeSession, answerQuestion, setFollowUpIds } = useApp();
   const copy = ui(language);
   const [symptoms, setSymptoms] = useState(activeSession?.inspection?.answers?.symptoms ?? "");
+  const [subjectRelation, setSubjectRelation] = useState(activeSession?.inspection?.answers?.subjectRelation ?? "self");
   const [voiceState, setVoiceState] = useState("idle"); // idle | listening | processing | success | error | permission_denied
   const [speechError, setSpeechError] = useState("");
   const [validationError, setValidationError] = useState("");
@@ -105,7 +106,9 @@ export default function SymptomIntake() {
 
     setValidationError("");
     setIsSubmitting(true);
+    if (cleanSymptoms !== (activeSession?.inspection?.answers?.symptoms || "").trim()) setFollowUpIds([]);
     answerQuestion("symptoms", cleanSymptoms);
+    answerQuestion("subjectRelation", subjectRelation);
     navigate(hasRedFlag(cleanSymptoms) ? "/emergency" : "/questions");
   }
 
@@ -165,6 +168,19 @@ export default function SymptomIntake() {
             <Mic size={20} />
           )}
         </button>
+      </section>
+
+      <section className="flow-context-card" aria-label={copy.caregiverTitle}>
+        <strong>{copy.caregiverTitle}</strong>
+        <p>{copy.caregiverHint}</p>
+        <div className="flow-choice-grid">
+          {["self", "child", "parent", "partner", "other"].map((value) => (
+            <button key={value} type="button" className={subjectRelation === value ? "selected" : ""}
+              aria-pressed={subjectRelation === value} onClick={() => setSubjectRelation(value)}>
+              {copy[`relation_${value}`]}
+            </button>
+          ))}
+        </div>
       </section>
 
       <div className="voice-status-row" aria-live="polite">

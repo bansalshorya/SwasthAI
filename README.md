@@ -1,36 +1,59 @@
-# 1. Project Title & Tagline
+# SwasthAI
 
-## **SwasthAI — Bolkar Batao. Samay Par Sambhalo.**
+**Bolkar Batao. Samay Par Sambhalo.**
 
 > **A bilingual, voice-first health-screening companion that converts symptoms, contextual answers, and optional photos into safety-focused next steps—before delay becomes risk.**
 
-SwasthAI is a mobile-first Hindi/English Progressive Web App (PWA) and Capacitor-ready Android application. It makes preliminary health screening more accessible through **spoken or typed symptom intake**, **guided follow-up questions**, **optional multimodal image analysis**, **early red-flag routing**, and **structured care guidance**.
+SwasthAI is a mobile-first Hindi/English web app with a Capacitor Android project. Users describe symptoms by voice or text, answer contextual questions, optionally add photos, and receive a structured screening report with urgency guidance.
 
-The system is deliberately positioned as a **screening and decision-support tool—not a diagnostic device**. It does not confirm disease, prescribe medication, or replace a qualified medical professional.
+**Safety boundary:** This is a screening aid, not a diagnosis or prescription. An urgent warning should lead to professional or emergency care, not another AI check.
 
-## Local development with live AI
+## What the app includes
 
-1. Copy `.env.example` to `.env`.
-2. Put your Groq key in `GROQ_API_KEY`. Keep it server-side and never rename it to a `VITE_*` variable.
-3. Install dependencies with `npm install`.
-4. Run the frontend and API together with `npm run dev`.
-5. Open the Vite URL shown in the terminal (normally `http://localhost:5173`). Vite forwards `/api/*` to the local server on port `8787`.
+| Feature | Current behavior |
+| --- | --- |
+| Bilingual intake | Hindi/English text and microphone input, with typed fallback. |
+| Adaptive questions | The AI selects 2–4 relevant questions from a predefined bilingual question bank; a local selection is used if that call fails. |
+| Caregiver mode | Record whether the screening is for yourself, a child, parent, partner, or someone else; the patient's age group is asked separately. |
+| Medicine and allergy context | Optional fields are passed to the screening model for safety context, without automatic prescribing. |
+| Photo assistant | Checks an optional photo for relevance and quality before it is kept. The final analysis checks photo-to-description consistency again and excludes mismatched photos from evidence. |
+| Progress checks | Start a linked repeat screening, compare reported severity/progression, and view saved photo thumbnails side by side. The trend is based on answers, not an automated diagnosis from photos. |
+| Clinician report | A print-ready report includes symptoms, answers, photo context, observations, red flags, and next steps. Use the browser's **Print / Save PDF** action. |
+| Spoken results | Reads the summary, warning signs, and recommended professional-care step aloud when device speech is available. |
+| Safety routing and history | Local red-flag checks can bypass AI; completed reports are searchable in device-local history. |
 
-Use `npm run dev:web` only when you intentionally want the Vite frontend without the local API. `npm run dev:full` remains available as an alias for the complete development stack.
+## Quick start
 
-On Windows PowerShell, use `npm.cmd` in place of `npm` if the system execution policy blocks `npm.ps1`.
+Requirements: Node.js, npm, and a key for a multimodal model that supports image input and JSON Schema structured output.
 
-The default setup uses Groq's OpenAI-compatible Chat Completions API with strict Structured Outputs and image inputs. `AI_MODEL` defaults to `qwen/qwen3.8-27b`. You can switch to OpenAI or another compatible multimodal provider through environment variables without editing application code. See `.env.example` for each configuration. The selected provider and model must support image inputs and JSON Schema structured output.
+```bash
+npm install
+```
 
-For a production-style local run, use `npm run build` followed by `npm start`; the same Node server then serves both `dist/` and `/api/analyze`. Provider free-tier limits and model availability can change, so check the provider's current console before a demo.
+Copy `.env.example` to `.env` and replace `GROQ_API_KEY` with your own key. The example value is a placeholder. Then start both the frontend and API:
 
-The deterministic demo is no longer a silent fallback. To use it deliberately for a presentation without making API calls, set `VITE_ENABLE_DEMO_AI=true` before starting or building the frontend. Real deployments should leave it `false`.
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173`. Check `http://localhost:5173/api/health`; `"aiConfigured": true` means the server found a provider key. On Windows PowerShell, use `npm.cmd` if `npm.ps1` is blocked by execution policy.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start Vite and the local API together. |
+| `npm run dev:web` | Start only Vite; AI calls require a separate API. |
+| `npm run api` | Start only the local API (default port `8787`). |
+| `npm test` | Run the automated tests. |
+| `npm run build` | Build the web app into `dist/`. |
+| `npm start` | Serve the built app and API from one Node process. |
+
+The API key stays in the server environment; never use a `VITE_*` variable for a secret or commit `.env`. Groq is the default provider. The provider, model, API style, and compatible-provider URL can be changed through `.env`.
+
+Each screening may use one call for adaptive questions, one per checked photo, and one for final analysis. These calls count toward your provider quota. `VITE_ENABLE_DEMO_AI=true` replaces **final analysis** with a demonstration result; adaptive questions and photo checks may still call the API, so it is not a fully offline mode.
 
 ## Vercel deployment
 
-The repository includes Vercel Functions at `/api/health` and `/api/analyze`; both reuse the same validation, emergency routing, provider configuration, and structured-result schema as the local Node server.
-
-In Vercel Project Settings, add these variables for **Production** (and Preview if needed), then redeploy:
+Deploy the repository as a Vite project and set these **Environment Variables** in Vercel Project Settings for Production (and Preview if needed):
 
 ```env
 AI_PROVIDER=groq
@@ -39,11 +62,11 @@ AI_MODEL=qwen/qwen3.8-27b
 AI_API_STYLE=chat-completions
 ```
 
-Do not add `VITE_` to the key name. After deployment, `/api/health` should return JSON with `"aiConfigured": true`; it never returns the secret itself.
+Redeploy after changing variables. Open `https://YOUR-DEPLOYMENT/api/health` and confirm `"aiConfigured": true`. The endpoint does not return the key. See `.env.example` for OpenAI or another compatible provider. Use a model that supports **both images and structured JSON output**.
 
-# 2. Problem Statement & Root Causes
+## Why it exists
 
-## **Problem statement**
+### The problem
 
 People in rural, semi-urban, and resource-constrained communities often delay seeking appropriate care because they cannot easily describe symptoms, assess urgency, or determine the correct next step. Existing symptom-checking tools are frequently text-heavy, English-first, disconnected from visual evidence, or unsafe when urgent symptoms require immediate escalation.
 
@@ -56,40 +79,31 @@ People in rural, semi-urban, and resource-constrained communities often delay se
 
 SwasthAI addresses the gap between **“I feel unwell”** and **“I know how urgently and where to seek help”** by turning informal symptom descriptions into a consistent, explainable, bilingual screening report.
 
-# 3. Proposed Solution & Workflow
+## Screening workflow
 
-## **End-to-end screening flow**
+1. Choose Hindi or English and type or speak symptoms. Typing works when speech recognition is unavailable.
+2. Local Hindi/English red-flag rules route recognized emergencies to an urgent screen with an India `112` call action.
+3. Answer duration, severity, progression, and patient age-group questions. `/api/follow-up` selects 2–4 additional questions from a fixed bilingual bank. A local symptom-based selection is used if that call fails.
+4. Optionally take or upload up to three photos. The app compresses them to WebP; `/api/photo-check` checks relevance and quality, with local darkness/blur checks if the remote check fails. A warning does not silently discard a photo.
+5. Add optional medicine and allergy context and review the entered information.
+6. `/api/analyze` validates the request server-side and asks the configured model for a structured screening result. It checks whether each photo actually supports the description; mismatched or unclear photos do not become image evidence and lower confidence.
+7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
+8. If appropriate, start a linked screening later. The app compares reported severity/progression and displays any saved photo thumbnails side by side.
 
-1. **Language and accessibility setup**
-   The user selects **Hindi or English**, with persistent language and light/dark theme preferences. Each guided stage can be read aloud through browser or native text-to-speech.
+### API endpoints
 
-2. **Voice or text symptom capture**
-   The user describes the problem naturally by typing or tapping the microphone. Browser speech recognition supports `hi-IN` and `en-IN`, while typing remains available when speech recognition is unsupported or permission is denied.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/health` | Reports whether the provider is configured, without exposing its key. |
+| `POST /api/follow-up` | Selects relevant question IDs from the predefined question bank. |
+| `POST /api/photo-check` | Checks one image against the reported symptoms for relevance and usability. |
+| `POST /api/analyze` | Produces the final structured screening response. |
 
-3. **Instant red-flag screening**
-   A client-side rules engine checks Hindi and English phrases for emergency indicators such as severe chest pain, breathing difficulty, unconsciousness, seizures, heavy bleeding, face droop, sudden weakness, and self-harm language. A match **bypasses the normal AI flow** and presents an immediate **112 emergency call action**.
+Local development uses the Node server in `server/`; Vercel uses matching functions in `api/`. Provider calls stay on the server. The model must support the configured JSON Schema format.
 
-4. **Contextual clinical questions**
-   The app asks four structured questions about **duration, severity, progression, and age group**. This adds essential context that a photo-only or one-message checker lacks.
+## Tech stack and architecture
 
-5. **Optional guided image capture**
-   The user may skip photos or add up to three role-specific images: a visible-symptom overview, close-up, and contextual view. Images can come from the device camera or gallery and are resized client-side to approximately **1,000 px maximum dimension** and compressed as **WebP** before analysis.
-
-6. **Multimodal AI request**
-   Symptoms, answers, language, and ordered optional images are sent to the repository's **server-side `/api/analyze` endpoint**. The server validates request size and image types, keeps the model prompt and API key off the browser, and calls the configured Groq, OpenAI, or compatible multimodal API.
-
-7. **Schema validation and safety normalization**
-   The response is parsed defensively and normalized into a fixed structure: risk level, confidence, summary, possible conditions, supporting evidence, image assessment, conservative home care, diet guidance, symptoms to monitor, red flags, and recommended timing for professional care. The prompt explicitly prohibits confirmed diagnoses, unsupported certainty, and medication dosages.
-
-8. **Actionable bilingual result**
-   Results are localized through a medical translation dictionary and displayed as a clear report. Users can **print, share, copy, revisit, search, filter, or delete** locally stored screening summaries. High-risk results retain a visible emergency action.
-
-9. **Explicit prototype mode**
-   The deterministic demonstration engine is available only when `VITE_ENABLE_DEMO_AI=true`. A missing server or API key now produces a visible retryable error instead of silently showing a hard-coded disease result.
-
-# 4. Tech Stack & Architecture
-
-## **Technologies implemented in this repository**
+### Technologies in this repository
 
 | Layer | Technology | Role in SwasthAI |
 | --- | --- | --- |
@@ -100,12 +114,12 @@ SwasthAI addresses the gap between **“I feel unwell”** and **“I know how u
 | **Camera and image processing** | MediaDevices API, Canvas API, WebP | Live camera capture, gallery input, image resizing, and bandwidth-aware compression. |
 | **Native/mobile bridge** | Capacitor Core, Capacitor Camera, Capacitor Android, Capacitor Community Text-to-Speech | Android-ready access to native camera and speech capabilities. |
 | **PWA/mobile web** | Web App Manifest, responsive CSS, route-level lazy loading | Install-like presentation and smaller initial JavaScript delivery. A service worker is not yet included, so full offline application caching is not claimed. |
-| **Client state and storage** | React Context and Hooks, `sessionStorage`, versioned `localStorage` | Resumable active screening, local history, theme/language persistence, legacy-data migration, and quota-safe image removal. |
+| **Client state and storage** | React Context and Hooks, `sessionStorage`, versioned `localStorage` | Resumable active screening, local history, theme persistence, legacy-data migration, and quota-safe image removal. |
 | **AI integration** | Groq/OpenAI-compatible APIs, image inputs, strict JSON Schema Structured Outputs, configurable provider and model | Combines symptom text, contextual answers, and optional images while enforcing predictable output fields. |
 | **Safety intelligence** | Hindi/English red-flag regex engine, response normalizer, medical translation dictionaries | Emergency bypass, uncertainty-aware results, bilingual medical terms, and conservative guidance. |
-| **Backend and database** | Dependency-free Node HTTP server with `/api/analyze` and `/api/health`; no cloud database | Keeps provider API keys, prompt policy, validation, timeout handling, and provider errors server-side. Screening history remains on the user's device by design. |
+| **Backend and database** | Dependency-free Node HTTP server and Vercel functions; no cloud database | Handles the four API endpoints, protects provider keys, validates requests, and normalizes provider errors. Screening history remains on the user's device. |
 
-## **Logical architecture**
+### Logical architecture
 
 ```mermaid
 flowchart LR
@@ -113,37 +127,39 @@ flowchart LR
     I --> S[Voice or Text Symptoms]
     S --> R{Local Red-Flag Engine}
     R -->|Emergency phrase| E[Emergency Screen and 112 Action]
-    R -->|Continue| Q[Context Questions]
+    R -->|Continue| Q[Core and Adaptive Questions]
     Q --> P[Optional Guided Photos]
     P --> C[Client-side Resize and WebP Compression]
-    C --> A[Structured Multimodal Request]
-    A --> X[Authenticated Stateless AI Proxy]
+    C --> H[Photo Quality and Relevance Check]
+    H --> A[Structured Multimodal Analysis]
+    A --> X[Server-side AI API]
     X --> M[Configured Multimodal Model]
     M --> V[Schema Validation and Safety Normalization]
     V --> O[Bilingual Screening Report]
-    O --> L[Local History / Print / Share]
+    O --> L[Local History / Spoken Result / Print to PDF]
+    L --> T[Linked Follow-up Screening]
 ```
 
-## **Privacy and medical-safety boundaries**
+## Privacy and medical-safety boundaries
 
-- **No model API key is exposed in client code**; inference passes through the included Node server and reads the selected provider key only from its environment.
-- **Photos are optional**, and saved history excludes raw image data to reduce privacy and storage risk.
-- **Emergency phrase detection runs locally** and does not wait for AI inference.
-- **No central database is active in the prototype**; cloud persistence, analytics, or clinician dashboards require explicit consent and a production backend.
-- Clinical validation, privacy impact assessment, security testing, accessibility testing, and applicable medical-device/regulatory review are mandatory before public clinical deployment.
+- **Provider keys stay server-side.** Never place a real key in `.env.example`, a `VITE_*` variable, or a Git commit. Rotate a key if it has been exposed.
+- **Health information leaves the device for AI checks.** Symptom context is sent to the configured provider for adaptive questions. Symptoms and an optional photo are sent for photo precheck; the final request sends entered answers, optional medicine/allergy context, and retained photos. Tell users which provider is used before any real-world deployment.
+- **Device-local data still needs care.** The active screening, including compressed photos, is held in `sessionStorage`. Completed history is held in `localStorage` with small photo thumbnails rather than full images; thumbnails may be removed if storage is full. These browser stores are not encrypted medical records and are not appropriate for shared devices without a clearing policy.
+- **No central database is active.** There is no account sync, clinician dashboard, or server-side report archive in this prototype. Your configured AI provider may have its own data-handling policy.
+- **Local red-flag detection is a limited safeguard, not a medical guarantee.** It can route recognized urgent phrases without waiting for AI, but wording it does not recognize may be missed. Users should seek emergency care whenever they believe symptoms are urgent.
+- Clinical validation, privacy impact assessment, security and accessibility testing, and applicable regulatory review are needed before clinical deployment.
 
-# 5. Scalability & Feasibility (CRITICAL FOR JUDGING)
+## Feasibility and future scale
 
-## **Why the current design can scale to thousands of users**
+### What the prototype supports
 
-- **CDN-friendly frontend:** The Vite build produces static assets that can be distributed through low-cost object storage and a CDN. Route-level lazy loading reduces initial load, while a single deployment can serve large concurrent traffic without per-user frontend compute.
-- **Stateless inference boundary:** `/api/analyze` defines a clean client-to-server contract. Multiple identical server instances can run behind an API gateway or load balancer because each request contains all data required for one screening. `VITE_AI_PROXY_URL` can point the client to a separately deployed endpoint when needed.
-- **Reduced network and inference load:** Photos are optional, capped at three, resized before upload, and WebP-compressed on the device. This lowers latency, mobile-data usage, model input size, and per-screening AI cost.
-- **No database bottleneck for prototype history:** Active sessions and reports are versioned and stored locally. The core screening experience therefore does not require a database read/write for every screen transition.
-- **Standard-device execution:** Red-flag checks, image preprocessing, localization, and UI logic run in an ordinary modern browser or Android WebView. Users do not need a GPU or on-device ML accelerator; heavy multimodal inference remains server-side.
-- **Graceful capability fallback:** Voice, camera, and sharing use feature detection. Typing, gallery upload, clipboard, and print alternatives keep the primary workflow usable when a device API is unavailable.
+- The Vite frontend can be served as static assets; route-level lazy loading reduces its initial bundle.
+- API requests are stateless and can be deployed independently, but throughput depends on the host, configured AI provider, model limits, request sizes, and cost. The app has not been load-tested at population scale.
+- Photos are optional, capped at three, and resized/compressed before upload. Adaptive questions and photo checks add provider calls, so production traffic needs budgeting and rate controls.
+- Sessions and history are stored on the device, avoiding a prototype database but limiting cross-device continuity and raising shared-device privacy concerns.
+- Red-flag checks and image preprocessing run on the device. Voice and camera features depend on browser/device support; typing and gallery upload provide alternatives.
 
-## **Production scale-out blueprint**
+### Production scale-out blueprint
 
 | Scale concern | Production approach | Feasibility and cost advantage |
 | --- | --- | --- |
@@ -154,45 +170,45 @@ flowchart LR
 | **Reliability** | Health checks, structured logs without raw medical content, metrics, retry policy, circuit breakers, and a safe “service unavailable” state. | Isolates provider failures without turning uncertain output into medical advice. |
 | **Regional reach** | Deploy proxy workers near target regions and serve cached static/localization assets from edge locations. | Improves response time without changing the application architecture. |
 
-## **Low-bandwidth and offline feasibility**
+### Low-bandwidth and offline boundaries
 
-- A user can complete the text/question flow **without uploading any image**.
+- A user can complete screening **without uploading an image**. Final AI analysis still requires connectivity; adaptive questions fall back to local selection when their request fails.
 - WebP resizing occurs before transmission, avoiding original-resolution mobile uploads.
-- Existing local reports and incomplete sessions can be reopened from device storage.
+- Existing local reports and incomplete sessions can be reopened when the app itself is available on the device.
 - The app detects loss of connectivity and blocks new remote analysis instead of pretending to return a live result.
 - The manifest provides an install-like mobile experience; a service worker and offline asset cache are the next step for true intermittent-connectivity deployment.
 
-## **What is ready versus what must be hardened**
+### What is ready versus what must be hardened
 
-**Implemented now:** complete bilingual screening UX, voice/text intake, local and server-side emergency routing, contextual questions, optional guided capture, client image optimization, server-side Groq/OpenAI-compatible integration, strict shared AI schema, explicit demo mode, local history, responsive/dark/print UI, and Capacitor configuration.
+**Implemented now:** bilingual voice/text intake; local and server-side emergency routing; AI-selected questions with local fallback; caregiver, age-group, medicine, and allergy context; optional guided photos with precheck and final consistency checks; structured Groq/OpenAI-compatible analysis; linked repeat screenings; local history; spoken results; print-to-PDF clinician view; responsive UI; and Capacitor configuration.
 
 **Required before a field pilot:** deploy the API behind authentication and rate limits, evaluate the selected model on clinician-reviewed cases, add observability without logging raw health content, run security/privacy reviews, validate translations and red-flag coverage with clinicians, test on entry-level Android devices and weak networks, and obtain ethics/regulatory approval appropriate to the deployment scope.
 
-# 6. Unique Selling Proposition (USP) & Competitor Edge
+## What makes this approach different
 
-- **Context-first multimodal screening:** Unlike photo-only classifiers or single-message symptom bots, SwasthAI combines free-form symptoms, four clinical context signals, and up to three guided visual perspectives before producing structured guidance.
-- **Safety before intelligence:** Emergency indicators are checked locally and can bypass AI analysis entirely. This is faster and more dependable than waiting for a cloud model to finish a standard conversational flow.
-- **Designed for Bharat, not merely translated:** Hindi and English are supported across voice input, spoken prompts, UI content, medical terms, validation messages, and results; text fallback protects access on unsupported devices.
+- **Context-first multimodal screening:** SwasthAI combines free-form symptoms, core and adaptive questions, optional medicine/allergy context, and up to three guided photos before producing structured guidance.
+- **Safety before intelligence:** Recognized emergency phrases are checked locally and can bypass AI analysis; this is a supplementary safeguard, not a complete emergency detector.
+- **Hindi/English-first workflow:** The interface, voice input, spoken results, medical terms, validation messages, and reports support both languages, subject to device speech support.
 - **Low-cost, privacy-conscious architecture:** Optional compressed photos, static frontend hosting, local history, no client-side AI secret, and pay-per-analysis server inference reduce infrastructure cost and unnecessary health-data retention.
 
-# 7. Target Audience & Impact
+## Intended users and impact
 
-## **Primary users**
+### Primary users
 
 - **Individuals and caregivers** in rural, semi-urban, and underserved communities who need understandable first-step guidance.
 - **Hindi-first and low-literacy users** who communicate more naturally through speech than medical forms.
 - **Community health workers and frontline volunteers** who need a consistent intake structure before referral.
 - **Telemedicine and primary-care teams** that can use the shareable report as a pre-consultation summary rather than repeating the entire intake.
 
-## **Expected workflow impact**
+### Expected workflow impact
 
 - Converts an unstructured complaint into a **standardized, bilingual screening summary**.
 - Surfaces time-sensitive warning signs at the beginning of the journey, not at the end.
 - Reduces avoidable image size and enables screening even when the user chooses not to share a photo.
 - Gives users one actionable view of **possible conditions, urgency, conservative care, diet, monitoring signs, and professional-care timing**.
-- Creates continuity through resumable sessions and searchable local history without requiring an account or cloud database.
+- Creates continuity through resumable sessions, linked progress checks, and searchable local history without requiring an account or cloud database.
 
-## **SIH pilot success metrics**
+### Proposed pilot evaluation targets
 
 The following are **evaluation targets—not yet claimed clinical outcomes**:
 
