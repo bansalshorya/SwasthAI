@@ -131,6 +131,8 @@ export default function SymptomIntake() {
         <span style={{ width: "25%" }} />
       </div>
 
+      <div className="intake-workspace">
+        <div className="intake-primary-column">
       <section className="intake-heading">
         <div className="section-icon">
           <HeartPulse size={22} />
@@ -168,19 +170,6 @@ export default function SymptomIntake() {
             <Mic size={20} />
           )}
         </button>
-      </section>
-
-      <section className="flow-context-card" aria-label={copy.caregiverTitle}>
-        <strong>{copy.caregiverTitle}</strong>
-        <p>{copy.caregiverHint}</p>
-        <div className="flow-choice-grid">
-          {["self", "child", "parent", "partner", "other"].map((value) => (
-            <button key={value} type="button" className={subjectRelation === value ? "selected" : ""}
-              aria-pressed={subjectRelation === value} onClick={() => setSubjectRelation(value)}>
-              {copy[`relation_${value}`]}
-            </button>
-          ))}
-        </div>
       </section>
 
       <div className="voice-status-row" aria-live="polite">
@@ -244,7 +233,23 @@ export default function SymptomIntake() {
         </section>
       )}
 
-      <div className="privacy-note">{copy.privateSession}</div>
+        </div>
+        <aside className="intake-context-column">
+          <section className="flow-context-card" aria-label={copy.caregiverTitle}>
+            <strong>{copy.caregiverTitle}</strong>
+            <p>{copy.caregiverHint}</p>
+            <div className="flow-choice-grid">
+              {["self", "child", "parent", "partner", "other"].map((value) => (
+                <button key={value} type="button" className={subjectRelation === value ? "selected" : ""}
+                  aria-pressed={subjectRelation === value} onClick={() => setSubjectRelation(value)}>
+                  {copy[`relation_${value}`]}
+                </button>
+              ))}
+            </div>
+          </section>
+          <div className="privacy-note">{copy.privateSession}</div>
+        </aside>
+      </div>
 
       <button
         type="button"

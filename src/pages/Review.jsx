@@ -92,6 +92,7 @@ export default function Review() {
       </section>
 
       <div className="review-content-stack">
+        <div className="review-main-column">
         {/* Section 1: Symptoms */}
         <section className="review-card" aria-labelledby="heading-review-symptoms">
           <div className="review-card-header">
@@ -117,24 +118,6 @@ export default function Review() {
               <p className="review-empty-text">{copy.noSymptomsEntered}</p>
             )}
           </div>
-        </section>
-
-        <section className="review-card" aria-labelledby="heading-review-safety">
-          <div className="review-card-header">
-            <div className="review-card-title-wrap"><FileText size={18} aria-hidden="true" /><h2 id="heading-review-safety">{copy.safetyContextTitle}</h2></div>
-          </div>
-          <p className="review-subtitle">{copy.safetyContextHint}</p>
-          <div className="flow-field-grid">
-            <label>{copy.currentMedicines}
-              <textarea maxLength={500} rows={2} value={answers.medications || ""}
-                onChange={(event) => answerQuestion("medications", event.target.value)} placeholder={copy.optionalContextPlaceholder} />
-            </label>
-            <label>{copy.knownAllergies}
-              <textarea maxLength={500} rows={2} value={answers.allergies || ""}
-                onChange={(event) => answerQuestion("allergies", event.target.value)} placeholder={copy.optionalContextPlaceholder} />
-            </label>
-          </div>
-          <p className="review-subtitle">{copy.caregiverTitle}: {copy[`relation_${answers.subjectRelation || "self"}`]}</p>
         </section>
 
         {/* Section 2: Question Answers */}
@@ -170,6 +153,26 @@ export default function Review() {
             )}
           </div>
         </section>
+        </div>
+
+        <div className="review-side-column">
+          <section className="review-card" aria-labelledby="heading-review-safety">
+            <div className="review-card-header">
+              <div className="review-card-title-wrap"><FileText size={18} aria-hidden="true" /><h2 id="heading-review-safety">{copy.safetyContextTitle}</h2></div>
+            </div>
+            <p className="review-subtitle">{copy.safetyContextHint}</p>
+            <div className="flow-field-grid">
+              <label>{copy.currentMedicines}
+                <textarea maxLength={500} rows={2} value={answers.medications || ""}
+                  onChange={(event) => answerQuestion("medications", event.target.value)} placeholder={copy.optionalContextPlaceholder} />
+              </label>
+              <label>{copy.knownAllergies}
+                <textarea maxLength={500} rows={2} value={answers.allergies || ""}
+                  onChange={(event) => answerQuestion("allergies", event.target.value)} placeholder={copy.optionalContextPlaceholder} />
+              </label>
+            </div>
+            <p className="review-subtitle">{copy.caregiverTitle}: {copy[`relation_${answers.subjectRelation || "self"}`]}</p>
+          </section>
 
         {/* Section 3: Photo Context */}
         <section className="review-card" aria-labelledby="heading-review-photos">
@@ -207,6 +210,7 @@ export default function Review() {
             )}
           </div>
         </section>
+        </div>
       </div>
 
       <div className="review-trust-banner">

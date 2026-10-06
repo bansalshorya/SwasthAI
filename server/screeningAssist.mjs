@@ -18,7 +18,7 @@ function cleanText(value, maxLength) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
-async function runStructuredTask({ instructions, prompt, image, schema, name }, options = {}) {
+export async function runStructuredTask({ instructions, prompt, image, schema, name, maxTokens = 500, timeoutMs }, options = {}) {
   const provider = resolveAIProvider(options);
   if (!provider.apiKey) throw new ScreeningError("The AI service is not configured.", "AI_NOT_CONFIGURED", 503);
   const isChat = provider.apiStyle === "chat-completions";
@@ -30,17 +30,17 @@ async function runStructuredTask({ instructions, prompt, image, schema, name }, 
     model: provider.model,
     messages: [{ role: "system", content: instructions }, { role: "user", content }],
     response_format: { type: "json_schema", json_schema: { name, strict: true, schema } },
-    max_completion_tokens: 500,
+    max_completion_tokens: maxTokens,
   } : {
     model: provider.model,
     instructions,
     input: [{ role: "user", content }],
     text: { format: { type: "json_schema", name, strict: true, schema } },
-    max_output_tokens: 500,
+    max_output_tokens: maxTokens,
     ...(provider.id === "openai" ? { store: false, reasoning: { effort: "low" } } : {}),
   };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), image ? 45_000 : 20_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (image ? 45_000 : 20_000));
   let response;
   try {
     response = await (options.fetchImpl || fetch)(`${provider.baseUrl}/${isChat ? "chat/completions" : "responses"}`, {
@@ -53,12 +53,29 @@ async function runStructuredTask({ instructions, prompt, image, schema, name }, 
   } finally {
     clearTimeout(timeout);
   }
-  if (!response.ok) throw new ScreeningError("The AI service could not complete this check.", "AI_PROVIDER_ERROR", 502);
+  if (!response.ok) {
+    const status = response.status;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const error = status === 429
+      ? new ScreeningError("The AI provider rate limit was reached. Wait before trying again.", "AI_RATE_LIMITED", 429)
+      : status === 401 || status === 403
+        ? new ScreeningError("The AI provider rejected the configured API key.", "AI_INVALID_KEY", 502)
+        : status === 400 || status === 422
+          ? new ScreeningError("The AI provider rejected this model request. Check model and structured-output support.", "AI_PROVIDER_REJECTED", 502)
+          : new ScreeningError("The AI service could not complete this check.", "AI_PROVIDER_ERROR", 502);
+    error.providerStatus = status;
+    if (status === 429) error.retryAfterSeconds = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(3600, Math.ceil(retryAfter)) : 60;
+    throw error;
+  }
   let payload;
   try { payload = await response.json(); } catch { throw new ScreeningError("The AI response could not be read.", "AI_INVALID_RESPONSE", 502); }
   const text = isChat
     ? payload?.choices?.[0]?.message?.content
     : payload?.output_text || payload?.output?.flatMap((item) => item.content || []).filter((item) => item.type === "output_text").map((item) => item.text).join("");
+  if (isChat && payload?.choices?.[0]?.finish_reason === "length") {
+    throw new ScreeningError("The AI response was cut off before the report was complete.", "AI_OUTPUT_TRUNCATED", 502);
+  }
   try { return JSON.parse(text); } catch { throw new ScreeningError("The AI response was invalid.", "AI_INVALID_RESPONSE", 502); }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Apple,
@@ -13,6 +13,7 @@ import {
   HeartPulse,
   HelpCircle,
   Home,
+  Loader2,
   Pencil,
   PhoneCall,
   Printer,
@@ -31,10 +32,13 @@ import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import { hydrateSession, sanitizeDegreeSymbols } from "../services/aiSkillEngine";
 import { compareScreenings } from "../services/progress";
+import { applyReportTranslations, reportTextEntries, requestReportTranslation, validateReportTranslations } from "../services/resultTranslation";
 import { stopSpeaking } from "../services/speech";
 import DoctorReport from "../components/DoctorReport";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
+
+const TRANSLATION_RETRY_KEY = "swasthai_translation_retry_after";
 
 function formatReportDate(dateString, lang) {
   try {
@@ -218,15 +222,98 @@ function WhyThisResultCard({ session, result, copy, language }) {
 
 export default function Result() {
   const navigate = useNavigate();
-  const { language, activeSession, pastSessions, startInspection, startFollowUp, speakText, muted, showToast } = useApp();
+  const { language: selectedLanguage, setLanguage, activeSession, pastSessions, startInspection, startFollowUp, speakText, muted, showToast, storeResultTranslation } = useApp();
   const [isReading, setIsReading] = useState(false);
+  const translationRequests = useRef(new Map());
+  const [translationCooldownUntil, setTranslationCooldownUntil] = useState(() => {
+    try {
+      const saved = Number(sessionStorage.getItem(TRANSLATION_RETRY_KEY));
+      return Number.isFinite(saved) && saved > Date.now() ? saved : 0;
+    } catch { return 0; }
+  });
+  const sourceLanguage = activeSession?.language === "hi" ? "hi" : "en";
+  const sourceSession = useMemo(
+    () => activeSession ? hydrateSession(activeSession, sourceLanguage) : null,
+    [activeSession, sourceLanguage],
+  );
+  const entries = useMemo(() => reportTextEntries(sourceSession), [sourceSession]);
+  const cachedItems = activeSession?.resultTranslations?.[selectedLanguage];
+  const cachedTranslations = useMemo(() => cachedItems
+    ? validateReportTranslations(entries, entries.map(({ id }) => ({ id, text: cachedItems[id] })))
+    : null, [cachedItems, entries]);
+  const isDemo = Boolean(sourceSession?.result?.prototype);
+  const needsTranslation = Boolean(sourceSession?.result && !isDemo
+    && selectedLanguage !== sourceLanguage && entries.length && !cachedTranslations);
+  const blockedLanguages = !isDemo && translationCooldownUntil > Date.now()
+    ? [sourceLanguage === "hi" ? "en" : "hi"].filter((code) => !activeSession?.resultTranslations?.[code])
+    : [];
+  const language = needsTranslation ? sourceLanguage : selectedLanguage;
   const copy = ui(language);
-  const session = activeSession ? hydrateSession(activeSession, language) : null;
+  const session = isDemo && selectedLanguage !== sourceLanguage
+    ? hydrateSession(activeSession, selectedLanguage)
+    : selectedLanguage !== sourceLanguage && cachedTranslations
+      ? applyReportTranslations(sourceSession, cachedTranslations, selectedLanguage)
+      : sourceSession;
   const result = session?.result;
   const parent = session?.parentSessionId ? pastSessions.find((item) => item.sessionId === session.parentSessionId) : null;
   const comparison = compareScreenings(parent, session);
 
   useEffect(() => () => stopSpeaking(), []);
+
+  useEffect(() => {
+    stopSpeaking();
+    setIsReading(false);
+  }, [selectedLanguage]);
+
+  useEffect(() => {
+    if (!translationCooldownUntil) return undefined;
+    const remaining = translationCooldownUntil - Date.now();
+    if (remaining <= 0) {
+      setTranslationCooldownUntil(0);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      setTranslationCooldownUntil(0);
+      try { sessionStorage.removeItem(TRANSLATION_RETRY_KEY); } catch { /* storage unavailable */ }
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [translationCooldownUntil]);
+
+  useEffect(() => {
+    if (!needsTranslation) return undefined;
+    // Reuse the in-flight request across React StrictMode's effect replay and
+    // quick language toggles, avoiding extra provider calls on a free-tier key.
+    const requestKey = JSON.stringify([sourceSession.sessionId, selectedLanguage, entries]);
+    let request = translationRequests.current.get(requestKey);
+    if (!request) {
+      request = requestReportTranslation(entries, sourceLanguage, selectedLanguage);
+      translationRequests.current.set(requestKey, request);
+      request.then(() => translationRequests.current.delete(requestKey),
+        () => translationRequests.current.delete(requestKey));
+    }
+    let active = true;
+    request.then((translations) => {
+      if (active) storeResultTranslation(sourceSession.sessionId, selectedLanguage, translations);
+    }, (error) => {
+      if (active) {
+        console.warn("Report translation unavailable:", error);
+        const errorCopy = ui(sourceLanguage);
+        if (error.code === "AI_RATE_LIMITED") {
+          const seconds = Math.min(3600, Math.max(5, Number(error.retryAfterSeconds) || 60));
+          const retryAt = Date.now() + seconds * 1000;
+          setTranslationCooldownUntil(retryAt);
+          try { sessionStorage.setItem(TRANSLATION_RETRY_KEY, String(retryAt)); } catch { /* storage unavailable */ }
+          showToast(errorCopy.translationRateLimited, "error", 7000);
+        } else if (error.code === "AI_PROVIDER_REJECTED" || error.code === "AI_INVALID_KEY") {
+          showToast(errorCopy.translationProviderRejected, "error", 7000);
+        } else {
+          showToast(errorCopy.translationUnavailable, "error", 6000);
+        }
+        setLanguage(sourceLanguage);
+      }
+    });
+    return () => { active = false; };
+  }, [needsTranslation, sourceLanguage, selectedLanguage, entries, sourceSession?.sessionId, storeResultTranslation, setLanguage, showToast]);
 
   if (!result) {
     return (
@@ -249,10 +336,12 @@ export default function Result() {
   }
 
   function handlePrint() {
+    if (needsTranslation) return;
     window.print();
   }
 
   function toggleReading() {
+    if (needsTranslation) return;
     if (isReading) { stopSpeaking(); setIsReading(false); return; }
     if (muted) { showToast(copy.unmuteToRead, "info"); return; }
     const speech = [result.summary, ...(result.redFlags || []), result.doctorRecommendation?.specialist, result.doctorRecommendation?.timeframe]
@@ -268,6 +357,7 @@ export default function Result() {
   }
 
   async function handleShareOrCopy() {
+    if (needsTranslation) return;
     const conditionLines = (result.possibleConditions || [])
       .slice(0, 3)
       .map((c) => `- ${c.name} (${copy[c.confidence] ?? c.confidence})`)
@@ -281,20 +371,20 @@ export default function Result() {
       : "";
 
     const summaryText = [
-      "SwasthAI - Health Screening Report Summary",
-      `Screened on: ${formatReportDate(session?.createdAt, language)}`,
-      `Risk Level: ${riskLabel}`,
-      reportedSymptoms ? `Reported Symptoms: ${reportedSymptoms}` : "",
-      imageMatchLine ? `Photo Check: ${imageMatchLine}` : "",
-      conditionLines ? `\nPossible Conditions:\n${conditionLines}` : "",
-      doctorLine ? `\nRecommendation:\n${doctorLine}` : "",
-      `\nNotice: ${copy.printDisclaimer}`,
+      `SwasthAI - ${copy.doctorReportTitle}`,
+      `${copy.screenedOn}: ${formatReportDate(session?.createdAt, language)}`,
+      `${copy.risk}: ${riskLabel}`,
+      reportedSymptoms ? `${copy.symptomsLabel}: ${reportedSymptoms}` : "",
+      imageMatchLine ? `${copy.imageConsistencyTitle}: ${imageMatchLine}` : "",
+      conditionLines ? `\n${copy.possibleOnly}:\n${conditionLines}` : "",
+      doctorLine ? `\n${copy.reportNextSteps}:\n${doctorLine}` : "",
+      `\n${copy.notDiagnosis}: ${copy.printDisclaimer}`,
     ].filter(Boolean).join("\n");
 
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
-          title: "SwasthAI Health Screening Report",
+          title: `SwasthAI - ${copy.doctorReportTitle}`,
           text: summaryText,
         });
         showToast(copy.reportShared, "success");
@@ -362,10 +452,17 @@ export default function Result() {
           <div className="step-label" aria-label={copy.stepFourOfFour}>
             {copy.stepFourOfFour}
           </div>
-          <LanguageSwitch />
+          <LanguageSwitch disabledCodes={blockedLanguages} disabledTitle={ui(sourceLanguage).translationRateLimited} />
           <ThemeToggle />
         </div>
       </header>
+
+      {needsTranslation && (
+        <div className="result-translation-status no-print" role="status" aria-live="polite">
+          <Loader2 size={17} className="spin" aria-hidden="true" />
+          <span>{copy.translatingReport}</span>
+        </div>
+      )}
 
       {/* Export / Share Toolbar */}
       <div className="report-action-bar no-print">
@@ -373,6 +470,7 @@ export default function Result() {
           type="button"
           className="report-action-btn"
           onClick={handlePrint}
+          disabled={needsTranslation}
           aria-label={copy.savePdf}
           title={copy.savePdf}
         >
@@ -380,6 +478,7 @@ export default function Result() {
           <span>{copy.savePdf}</span>
         </button>
         <button type="button" className="report-action-btn" onClick={toggleReading}
+          disabled={needsTranslation}
           aria-label={isReading ? copy.stopReading : copy.readResults}>
           {isReading ? <VolumeX size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}
           <span>{isReading ? copy.stopReading : copy.readResults}</span>
@@ -388,6 +487,7 @@ export default function Result() {
           type="button"
           className="report-action-btn"
           onClick={handleShareOrCopy}
+          disabled={needsTranslation}
           aria-label={copy.shareReport}
           title={copy.shareReport}
         >

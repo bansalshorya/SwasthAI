@@ -62,7 +62,7 @@ export default function Analysis() {
     try {
       const result = await runAnalysis(activeSession);
       completeAnalysis(result);
-      saveSession({ ...activeSession, analysis: result, result });
+      saveSession({ ...activeSession, analysis: result, result, resultTranslations: {} });
       navigate("/result");
     } catch (analysisError) {
       console.error("Health screening analysis error:", analysisError);

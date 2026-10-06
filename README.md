@@ -87,7 +87,7 @@ SwasthAI addresses the gap between **“I feel unwell”** and **“I know how u
 4. Optionally take or upload up to three photos. The app compresses them to WebP; `/api/photo-check` checks relevance and quality, with local darkness/blur checks if the remote check fails. A warning does not silently discard a photo.
 5. Add optional medicine and allergy context and review the entered information.
 6. `/api/analyze` validates the request server-side and asks the configured model for a structured screening result. It checks whether each photo actually supports the description; mismatched or unclear photos do not become image evidence and lower confidence.
-7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
+7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. Switch the report between Hindi and English: the first switch translates user-facing AI text through `/api/translate-report` and stores the translation locally for that screening. A short provider rate limit is retried once; longer limits temporarily disable new translation attempts. If translation fails, the app keeps the previous language instead of showing a mixed-language report. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
 8. If appropriate, start a linked screening later. The app compares reported severity/progression and displays any saved photo thumbnails side by side.
 
 ### API endpoints
@@ -98,6 +98,7 @@ SwasthAI addresses the gap between **“I feel unwell”** and **“I know how u
 | `POST /api/follow-up` | Selects relevant question IDs from the predefined question bank. |
 | `POST /api/photo-check` | Checks one image against the reported symptoms for relevance and usability. |
 | `POST /api/analyze` | Produces the final structured screening response. |
+| `POST /api/translate-report` | Translates user-facing report text while preserving clinical risk and status fields. Requires a configured AI provider; the first switch uses an additional provider call. |
 
 Local development uses the Node server in `server/`; Vercel uses matching functions in `api/`. Provider calls stay on the server. The model must support the configured JSON Schema format.
 
@@ -117,7 +118,7 @@ Local development uses the Node server in `server/`; Vercel uses matching functi
 | **Client state and storage** | React Context and Hooks, `sessionStorage`, versioned `localStorage` | Resumable active screening, local history, theme persistence, legacy-data migration, and quota-safe image removal. |
 | **AI integration** | Groq/OpenAI-compatible APIs, image inputs, strict JSON Schema Structured Outputs, configurable provider and model | Combines symptom text, contextual answers, and optional images while enforcing predictable output fields. |
 | **Safety intelligence** | Hindi/English red-flag regex engine, response normalizer, medical translation dictionaries | Emergency bypass, uncertainty-aware results, bilingual medical terms, and conservative guidance. |
-| **Backend and database** | Dependency-free Node HTTP server and Vercel functions; no cloud database | Handles the four API endpoints, protects provider keys, validates requests, and normalizes provider errors. Screening history remains on the user's device. |
+| **Backend and database** | Dependency-free Node HTTP server and Vercel functions; no cloud database | Handles the five API endpoints, protects provider keys, validates requests, and normalizes provider errors. Screening history and cached translations remain on the user's device. |
 
 ### Logical architecture
 

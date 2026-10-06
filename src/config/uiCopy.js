@@ -2,6 +2,10 @@ export const UI_COPY = {
   hi: {
     adaptiveQuestion: "आपके लक्षणों के अनुसार सवाल",
     preparingQuestions: "सवाल तैयार हो रहे हैं…",
+    translatingReport: "रिपोर्ट का अनुवाद हो रहा है… कुछ क्षण रुकें।",
+    translationUnavailable: "रिपोर्ट का अनुवाद अभी नहीं हो सका। पिछली भाषा में परिणाम दिखाए जा रहे हैं।",
+    translationRateLimited: "AI की अनुरोध सीमा पूरी हो गई है। कुछ देर बाद भाषा बदलने का प्रयास करें।",
+    translationProviderRejected: "AI ने अनुवाद अनुरोध अस्वीकार किया। सर्वर में मॉडल और API कुंजी की सेटिंग जाँचें।",
     caregiverTitle: "यह जाँच किसके लिए है?",
     caregiverHint: "अगर आप किसी और की मदद कर रहे हैं, तो उनका सही आयु वर्ग भी चुनें।",
     relation_self: "अपने लिए",
@@ -259,6 +263,10 @@ export const UI_COPY = {
   en: {
     adaptiveQuestion: "Question based on your symptoms",
     preparingQuestions: "Preparing questions…",
+    translatingReport: "Translating your report… Please wait a moment.",
+    translationUnavailable: "The report could not be translated right now. Results are shown in the previous language.",
+    translationRateLimited: "The AI rate limit was reached. Please wait before switching languages again.",
+    translationProviderRejected: "The AI provider rejected translation. Check the server's model and API key settings.",
     caregiverTitle: "Who is this screening for?",
     caregiverHint: "If you are helping someone else, choose their correct age group in the next step.",
     relation_self: "Myself",

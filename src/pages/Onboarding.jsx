@@ -36,9 +36,11 @@ export default function Onboarding() {
       </header>
       <section className="onboarding-card">
         {step.image ? <img src={step.image} alt="" /> : <div className="illustration-placeholder"><StepIcon size={72} strokeWidth={1.4} /></div>}
-        <p className="eyebrow">{index + 1} / {APP_CONFIG.onboarding.length}</p>
-        <h1>{localize(step.title, language)}</h1>
-        <p>{localize(step.subtitle, language)}</p>
+        <div className="onboarding-copy">
+          <p className="eyebrow">{index + 1} / {APP_CONFIG.onboarding.length}</p>
+          <h1>{localize(step.title, language)}</h1>
+          <p>{localize(step.subtitle, language)}</p>
+        </div>
       </section>
       <div className="step-dots">
         {APP_CONFIG.onboarding.map((item, itemIndex) => (

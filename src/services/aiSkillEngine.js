@@ -1,6 +1,6 @@
-import { APP_CONFIG } from "../config/appConfig";
-import { localize } from "../config/localize";
-import { localizeConditionName, localizeMedicalText, localizeSymptoms, sanitizeDegreeSymbols } from "./medicalTranslation";
+import { APP_CONFIG } from "../config/appConfig.js";
+import { localize } from "../config/localize.js";
+import { localizeConditionName, localizeMedicalText, localizeSymptoms, sanitizeDegreeSymbols } from "./medicalTranslation.js";
 
 export { localizeConditionName, localizeMedicalText, localizeSymptoms, sanitizeDegreeSymbols };
 
@@ -339,7 +339,7 @@ export function hydrateSession(session, targetLanguage) {
     existingResult.doctorRecommendation?.specialist
   );
 
-  const fullResult = hasFullGuidance ? existingResult : {
+  const fullResult = existingResult.prototype && language !== session.language ? fallback : hasFullGuidance ? existingResult : {
     ...fallback,
     ...existingResult,
     possibleConditions: (existingResult.possibleConditions && existingResult.possibleConditions.length)

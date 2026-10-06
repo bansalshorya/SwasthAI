@@ -308,6 +308,8 @@ export default function Inspection() {
         <span style={{ width: "75%" }} />
       </div>
 
+      <div className="photo-workspace">
+        <div className="photo-intro-column">
       <section className="photo-heading">
         <div className="section-icon">
           <Camera size={22} />
@@ -348,7 +350,14 @@ export default function Inspection() {
         </div>
       )}
 
+          <div className="privacy-note">
+            <LockKeyhole size={16} aria-hidden="true" />
+            {copy.photoPrivacy}
+          </div>
+        </div>
+
       {/* Drag & drop capable capture card */}
+        <div className="photo-capture-column">
       <section
         className={`capture-card ${isDragging ? "dragging" : ""}`}
         onDragOver={(e) => {
@@ -391,10 +400,7 @@ export default function Inspection() {
       </section>
 
       {error && <p className="form-error" role="alert">{error}</p>}
-
-      <div className="privacy-note">
-        <LockKeyhole size={16} aria-hidden="true" />
-        {copy.photoPrivacy}
+        </div>
       </div>
 
       <button

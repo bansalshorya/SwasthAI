@@ -26,6 +26,7 @@ function createSession(language, parent = null) {
     environment: { available: false },
     analysis: null,
     result: null,
+    resultTranslations: {},
   };
 }
 
@@ -66,6 +67,7 @@ function persistSessionsSafely(sessions) {
       try {
         const strippedSessions = sessions.map((s) => ({
           ...s,
+          resultTranslations: {},
           inspection: {
             ...s.inspection,
             images: (s.inspection?.images || []).map(({ id, stepId, role, capturedAt }) => ({
@@ -95,8 +97,17 @@ function loadActiveSession() {
   }
 }
 
+function loadInitialLanguage() {
+  try {
+    const savedLanguage = JSON.parse(sessionStorage.getItem(ACTIVE_SESSION_KEY) || "null")?.language;
+    return ["hi", "en"].includes(savedLanguage) ? savedLanguage : APP_CONFIG.app.defaultLanguage;
+  } catch {
+    return APP_CONFIG.app.defaultLanguage;
+  }
+}
+
 export function AppProvider({ children }) {
-  const [language, setLanguage] = useState(APP_CONFIG.app.defaultLanguage);
+  const [language, setLanguage] = useState(loadInitialLanguage);
   const [activeSession, setActiveSession] = useState(loadActiveSession);
   const [pastSessions, setPastSessions] = useState(loadSessions);
   const [muted, setMuted] = useState(false);
@@ -264,7 +275,22 @@ export function AppProvider({ children }) {
   }, []);
 
   const completeAnalysis = useCallback((result) => {
-    setActiveSession((session) => ({ ...session, analysis: result, result }));
+    setActiveSession((session) => ({ ...session, analysis: result, result, resultTranslations: {} }));
+  }, []);
+
+  const storeResultTranslation = useCallback((sessionId, targetLanguage, translations) => {
+    if (!["hi", "en"].includes(targetLanguage) || !sessionId || !translations) return;
+    const withTranslation = (session) => session?.sessionId === sessionId && session.result ? {
+      ...session,
+      resultTranslations: { ...session.resultTranslations, [targetLanguage]: translations },
+    } : session;
+    setActiveSession((current) => withTranslation(current));
+    setPastSessions((current) => {
+      if (!current.some((session) => session.sessionId === sessionId)) return current;
+      const next = current.map(withTranslation);
+      persistSessionsSafely(next);
+      return next;
+    });
   }, []);
 
   const saveSession = useCallback((sessionOverride) => {
@@ -289,6 +315,7 @@ export function AppProvider({ children }) {
       } : { answers: {}, images: [] },
       result: session.result || null,
       analysis: session.analysis || session.result || null,
+      resultTranslations: session.resultTranslations || {},
     };
     setPastSessions((current) => {
       const next = [
@@ -382,6 +409,7 @@ export function AppProvider({ children }) {
     removeImage,
     answerQuestion,
     completeAnalysis,
+    storeResultTranslation,
     saveSession,
     speakText,
     toggleMute: () => {
@@ -412,6 +440,7 @@ export function AppProvider({ children }) {
     removeImage,
     answerQuestion,
     completeAnalysis,
+    storeResultTranslation,
     saveSession,
     speakText,
   ]);

@@ -1,7 +1,7 @@
 import { APP_CONFIG } from "../config/appConfig";
 import { useApp } from "../context/AppContext";
 
-export default function LanguageSwitch({ className = "" }) {
+export default function LanguageSwitch({ className = "", disabledCodes = [], disabledTitle = "" }) {
   const { language, setLanguage } = useApp();
 
   return (
@@ -12,6 +12,8 @@ export default function LanguageSwitch({ className = "" }) {
           type="button"
           className={language === code ? "active" : ""}
           onClick={() => setLanguage(code)}
+          disabled={disabledCodes.includes(code)}
+          title={disabledCodes.includes(code) ? disabledTitle : undefined}
           aria-label={code === "hi" ? "हिंदी" : "English"}
         >
           {code.toUpperCase()}
