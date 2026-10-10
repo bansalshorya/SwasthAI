@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Apple,
@@ -39,6 +39,8 @@ import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
 
 const TRANSLATION_RETRY_KEY = "swasthai_translation_retry_after";
+const inFlightReportTranslations = new Map();
+const attemptedAutoTranslations = new Set();
 
 function formatReportDate(dateString, lang) {
   try {
@@ -224,7 +226,6 @@ export default function Result() {
   const navigate = useNavigate();
   const { language: selectedLanguage, setLanguage, activeSession, pastSessions, startInspection, startFollowUp, speakText, muted, showToast, storeResultTranslation } = useApp();
   const [isReading, setIsReading] = useState(false);
-  const translationRequests = useRef(new Map());
   const [translationCooldownUntil, setTranslationCooldownUntil] = useState(() => {
     try {
       const saved = Number(sessionStorage.getItem(TRANSLATION_RETRY_KEY));
@@ -237,15 +238,16 @@ export default function Result() {
     [activeSession, sourceLanguage],
   );
   const entries = useMemo(() => reportTextEntries(sourceSession), [sourceSession]);
-  const cachedItems = activeSession?.resultTranslations?.[selectedLanguage];
+  const targetLanguage = sourceLanguage === "hi" ? "en" : "hi";
+  const cachedItems = activeSession?.resultTranslations?.[targetLanguage];
   const cachedTranslations = useMemo(() => cachedItems
     ? validateReportTranslations(entries, entries.map(({ id }) => ({ id, text: cachedItems[id] })))
     : null, [cachedItems, entries]);
   const isDemo = Boolean(sourceSession?.result?.prototype);
-  const needsTranslation = Boolean(sourceSession?.result && !isDemo
-    && selectedLanguage !== sourceLanguage && entries.length && !cachedTranslations);
+  const translationMissing = Boolean(sourceSession?.result && !isDemo && entries.length && !cachedTranslations);
+  const needsTranslation = translationMissing && selectedLanguage === targetLanguage;
   const blockedLanguages = !isDemo && translationCooldownUntil > Date.now()
-    ? [sourceLanguage === "hi" ? "en" : "hi"].filter((code) => !activeSession?.resultTranslations?.[code])
+    ? [targetLanguage].filter((code) => !activeSession?.resultTranslations?.[code])
     : [];
   const language = needsTranslation ? sourceLanguage : selectedLanguage;
   const copy = ui(language);
@@ -280,21 +282,27 @@ export default function Result() {
   }, [translationCooldownUntil]);
 
   useEffect(() => {
-    if (!needsTranslation) return undefined;
+    if (!translationMissing || translationCooldownUntil > Date.now()) return undefined;
+    const requestKey = `${sourceSession.sessionId}:${targetLanguage}`;
+    // Prepare the other language as soon as the result opens. A failed automatic
+    // attempt is retried only if the user explicitly switches languages.
+    if (!needsTranslation && attemptedAutoTranslations.has(requestKey)
+      && !inFlightReportTranslations.has(requestKey)) return undefined;
+    attemptedAutoTranslations.add(requestKey);
     // Reuse the in-flight request across React StrictMode's effect replay and
     // quick language toggles, avoiding extra provider calls on a free-tier key.
-    const requestKey = JSON.stringify([sourceSession.sessionId, selectedLanguage, entries]);
-    let request = translationRequests.current.get(requestKey);
+    let request = inFlightReportTranslations.get(requestKey);
     if (!request) {
-      request = requestReportTranslation(entries, sourceLanguage, selectedLanguage);
-      translationRequests.current.set(requestKey, request);
-      request.then(() => translationRequests.current.delete(requestKey),
-        () => translationRequests.current.delete(requestKey));
+      request = requestReportTranslation(entries, sourceLanguage, targetLanguage);
+      inFlightReportTranslations.set(requestKey, request);
+      request.then((translations) => {
+        inFlightReportTranslations.delete(requestKey);
+        // Persist even if the user leaves the result page while the request runs.
+        storeResultTranslation(sourceSession.sessionId, targetLanguage, translations);
+      }, () => inFlightReportTranslations.delete(requestKey));
     }
     let active = true;
-    request.then((translations) => {
-      if (active) storeResultTranslation(sourceSession.sessionId, selectedLanguage, translations);
-    }, (error) => {
+    request.catch((error) => {
       if (active) {
         console.warn("Report translation unavailable:", error);
         const errorCopy = ui(sourceLanguage);
@@ -309,11 +317,11 @@ export default function Result() {
         } else {
           showToast(errorCopy.translationUnavailable, "error", 6000);
         }
-        setLanguage(sourceLanguage);
+        if (needsTranslation) setLanguage(sourceLanguage);
       }
     });
     return () => { active = false; };
-  }, [needsTranslation, sourceLanguage, selectedLanguage, entries, sourceSession?.sessionId, storeResultTranslation, setLanguage, showToast]);
+  }, [translationMissing, needsTranslation, translationCooldownUntil, sourceLanguage, targetLanguage, entries, sourceSession?.sessionId, storeResultTranslation, setLanguage, showToast]);
 
   if (!result) {
     return (

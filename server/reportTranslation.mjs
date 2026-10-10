@@ -4,6 +4,22 @@ import { validateReportTranslations } from "../src/services/resultTranslation.js
 
 const ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9.]{0,99}$/;
 
+// A dedicated translation credential keeps report generation and translation
+// on separate provider quotas. Without TRANSLATION_* settings, existing
+// deployments continue to use the screening provider.
+export function translationProviderOptions(options = {}, environment = process.env) {
+  const settings = ["TRANSLATION_PROVIDER", "TRANSLATION_API_KEY", "TRANSLATION_MODEL", "TRANSLATION_BASE_URL", "TRANSLATION_API_STYLE"];
+  if (!settings.some((name) => environment[name])) return options;
+  return {
+    ...options,
+    apiKey: environment.TRANSLATION_API_KEY || "",
+    ...(environment.TRANSLATION_PROVIDER ? { provider: environment.TRANSLATION_PROVIDER } : {}),
+    ...(environment.TRANSLATION_MODEL ? { model: environment.TRANSLATION_MODEL } : {}),
+    ...(environment.TRANSLATION_BASE_URL ? { baseUrl: environment.TRANSLATION_BASE_URL } : {}),
+    ...(environment.TRANSLATION_API_STYLE ? { apiStyle: environment.TRANSLATION_API_STYLE } : {}),
+  };
+}
+
 export async function translateReport(raw, options = {}) {
   const sourceLanguage = raw?.sourceLanguage;
   const targetLanguage = raw?.targetLanguage;
@@ -55,7 +71,7 @@ Translate each text item faithfully. Preserve uncertainty, negation, urgency, ti
     // for one report can immediately exhaust the minute's allowance.
     maxTokens: 3_500,
     timeoutMs: 45_000,
-  }, options);
+  }, translationProviderOptions(options));
   const translations = validateReportTranslations(cleaned, result?.items);
   if (!translations) {
     throw new ScreeningError("The translated report was incomplete. Please try again.", "AI_TRANSLATION_INCOMPLETE", 502);

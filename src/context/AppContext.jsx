@@ -67,7 +67,6 @@ function persistSessionsSafely(sessions) {
       try {
         const strippedSessions = sessions.map((s) => ({
           ...s,
-          resultTranslations: {},
           inspection: {
             ...s.inspection,
             images: (s.inspection?.images || []).map(({ id, stepId, role, capturedAt }) => ({

@@ -47,9 +47,9 @@ Open `http://localhost:5173`. Check `http://localhost:5173/api/health`; `"aiConf
 | `npm run build` | Build the web app into `dist/`. |
 | `npm start` | Serve the built app and API from one Node process. |
 
-The API key stays in the server environment; never use a `VITE_*` variable for a secret or commit `.env`. Groq is the default provider. The provider, model, API style, and compatible-provider URL can be changed through `.env`.
+The API key stays in the server environment; never use a `VITE_*` variable for a secret or commit `.env`. Groq is the default provider. The provider, model, API style, and compatible-provider URL can be changed through `.env`. To give translation its own key and quota, set `TRANSLATION_API_KEY` on the server. You can also set `TRANSLATION_PROVIDER`, `TRANSLATION_MODEL`, `TRANSLATION_BASE_URL`, and `TRANSLATION_API_STYLE` if the translation provider differs from screening. If you set any `TRANSLATION_*` variable, a translation key is required. Without these settings, translation uses the screening provider.
 
-Each screening may use one call for adaptive questions, one per checked photo, and one for final analysis. These calls count toward your provider quota. `VITE_ENABLE_DEMO_AI=true` replaces **final analysis** with a demonstration result; adaptive questions and photo checks may still call the API, so it is not a fully offline mode.
+Each screening may use one call for adaptive questions, one per checked photo, one for final analysis, and one to prepare the report in the other language. The translated version is saved with that screening on the device, so later switches and history views do not call the translation API again. These calls count toward their respective provider quotas. `VITE_ENABLE_DEMO_AI=true` replaces **final analysis** with a demonstration result; adaptive questions and photo checks may still call the API, so it is not a fully offline mode.
 
 ## Vercel deployment
 
@@ -60,6 +60,8 @@ AI_PROVIDER=groq
 GROQ_API_KEY=your_own_groq_key
 AI_MODEL=qwen/qwen3.8-27b
 AI_API_STYLE=chat-completions
+# Optional: a separate key for translating reports
+TRANSLATION_API_KEY=your_translation_only_key
 ```
 
 Redeploy after changing variables. Open `https://YOUR-DEPLOYMENT/api/health` and confirm `"aiConfigured": true`. The endpoint does not return the key. See `.env.example` for OpenAI or another compatible provider. Use a model that supports **both images and structured JSON output**.
@@ -87,7 +89,7 @@ SwasthAI addresses the gap between **“I feel unwell”** and **“I know how u
 4. Optionally take or upload up to three photos. The app compresses them to WebP; `/api/photo-check` checks relevance and quality, with local darkness/blur checks if the remote check fails. A warning does not silently discard a photo.
 5. Add optional medicine and allergy context and review the entered information.
 6. `/api/analyze` validates the request server-side and asks the configured model for a structured screening result. It checks whether each photo actually supports the description; mismatched or unclear photos do not become image evidence and lower confidence.
-7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. Switch the report between Hindi and English: the first switch translates user-facing AI text through `/api/translate-report` and stores the translation locally for that screening. A short provider rate limit is retried once; longer limits temporarily disable new translation attempts. If translation fails, the app keeps the previous language instead of showing a mixed-language report. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
+7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. When the result page opens, `/api/translate-report` prepares the other language and stores it with the screening. Switching between Hindi and English then uses the saved versions without another API call. A short provider rate limit is retried once; longer limits temporarily disable new translation attempts. If translation fails, the app keeps the original language and can retry when the user switches languages. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
 8. If appropriate, start a linked screening later. The app compares reported severity/progression and displays any saved photo thumbnails side by side.
 
 ### API endpoints

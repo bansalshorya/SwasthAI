@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { translateReport } from "./reportTranslation.mjs";
+import { translateReport, translationProviderOptions } from "./reportTranslation.mjs";
 import { ScreeningError } from "./openaiScreening.mjs";
 import { applyReportTranslations, reportTextEntries, requestReportTranslation, validateReportTranslations } from "../src/services/resultTranslation.js";
 import { hydrateSession } from "../src/services/aiSkillEngine.js";
 import translateApi from "../api/translate-report.mjs";
 
 const config = { provider: "groq", apiKey: "test-key", model: "test-model" };
+
+test("translation can use a separate server-side provider and key", () => {
+  const screening = { provider: "groq", apiKey: "screening-key", model: "screening-model" };
+  assert.equal(translationProviderOptions(screening, {}), screening);
+  const translation = translationProviderOptions(screening, {
+    TRANSLATION_PROVIDER: "openai",
+    TRANSLATION_API_KEY: "translation-key",
+    TRANSLATION_MODEL: "translation-model",
+  });
+  assert.equal(translation.provider, "openai");
+  assert.equal(translation.apiKey, "translation-key");
+  assert.equal(translation.model, "translation-model");
+  assert.equal(screening.apiKey, "screening-key");
+  assert.equal(translationProviderOptions(screening, { TRANSLATION_PROVIDER: "groq" }).apiKey, "");
+});
 
 test("report translation keeps medical risk and status fields unchanged", async () => {
   const source = {
