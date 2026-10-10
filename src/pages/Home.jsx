@@ -22,6 +22,7 @@ import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
+import StartScreeningButton from "../components/StartScreeningButton";
 import { localizeConditionName, localizeSymptoms } from "../services/medicalTranslation";
 
 function formatSessionDate(dateString, lang) {
@@ -312,14 +313,11 @@ export default function Home() {
             <h1>{copy.howAreYouFeeling}</h1>
             <p>{copy.howAreYouFeelingHint}</p>
             <div className="hero-cta-wrapper">
-              <button
-                type="button"
-                className="accent-button hero-cta"
+              <StartScreeningButton
+                label={copy.startScreeningCta}
                 onClick={handleInitiateScreening}
-              >
-                <span>{copy.startScreeningCta}</span>
-                <ArrowRight size={18} className="cta-arrow" />
-              </button>
+                size="large"
+              />
               <span className="hero-input-methods-note">
                 {copy.homeInputMethodsNotice}
               </span>

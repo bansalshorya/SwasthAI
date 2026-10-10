@@ -86,17 +86,21 @@ export default function Questions() {
           <ArrowLeft />
         </button>
         <div className="header-actions">
-          <div className="step-label" aria-label={copy.stepTwoOfFour}>{copy.stepTwoOfFour}</div>
-          <span className="question-count-badge">
-            {copy.questionProgress} {index + 1} / {questions.length}
-          </span>
           <LanguageSwitch />
           <ThemeToggle />
         </div>
       </header>
 
-      <div className="progress-track" aria-hidden="true">
-        <span style={{ width: `${progressPercent}%` }} />
+      <div className="step-progress-area">
+        <div className="step-indicator-row">
+          <span className="step-label" aria-label={copy.stepTwoOfFour}>{copy.stepTwoOfFour}</span>
+          <span className="question-count-badge">
+            {copy.questionProgress} {index + 1} / {questions.length}
+          </span>
+        </div>
+        <div className="progress-track" aria-hidden="true">
+          <span style={{ width: `${progressPercent}%` }} />
+        </div>
       </div>
 
       <section className="question-card">

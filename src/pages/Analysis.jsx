@@ -82,8 +82,8 @@ export default function Analysis() {
   }, []);
 
   return (
-    <main className="center-screen">
-      <section className="analysis-card" role="region" aria-live="polite">
+    <main className="center-screen analysis-screen workflow-framed-screen">
+      <section className="analysis-card framed-content" role="region" aria-live="polite">
         {errorInfo ? (
           <>
             <AlertTriangle size={44} className="danger" aria-hidden="true" />

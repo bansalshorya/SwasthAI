@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, ListChecks, Mic2 } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { APP_CONFIG } from "../config/appConfig";
 import { localize } from "../config/localize";
 import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
+import OnboardingIllustration from "../components/OnboardingIllustration";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -12,7 +13,6 @@ export default function Onboarding() {
   const copy = ui(language);
   const [index, setIndex] = useState(0);
   const step = APP_CONFIG.onboarding[index];
-  const StepIcon = [Mic2, ListChecks, Camera][index] ?? ListChecks;
 
   useEffect(() => {
     speakText(localize(step.voicePrompt, language));
@@ -35,20 +35,29 @@ export default function Onboarding() {
         <button className="text-button" onClick={() => navigate("/home")}>{copy.skip}</button>
       </header>
       <section className="onboarding-card">
-        {step.image ? <img src={step.image} alt="" /> : <div className="illustration-placeholder"><StepIcon size={72} strokeWidth={1.4} /></div>}
+        <OnboardingIllustration stepIndex={index} />
         <div className="onboarding-copy">
           <p className="eyebrow">{index + 1} / {APP_CONFIG.onboarding.length}</p>
           <h1>{localize(step.title, language)}</h1>
           <p>{localize(step.subtitle, language)}</p>
         </div>
       </section>
-      <div className="step-dots">
+      <div className="step-dots" role="tablist" aria-label="Onboarding steps">
         {APP_CONFIG.onboarding.map((item, itemIndex) => (
-          <button key={item.id} className={itemIndex === index ? "active" : ""} onClick={() => setIndex(itemIndex)} />
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={itemIndex === index}
+            aria-label={`Slide ${itemIndex + 1}`}
+            className={itemIndex === index ? "active" : ""}
+            onClick={() => setIndex(itemIndex)}
+          />
         ))}
       </div>
-      <button className="primary-button" onClick={next}>
-        {copy.next}<ArrowRight size={18} />
+      <button type="button" className="primary-button" onClick={next}>
+        <span>{index === APP_CONFIG.onboarding.length - 1 ? copy.startScreeningCta || copy.next : copy.next}</span>
+        <ArrowRight size={18} aria-hidden="true" />
       </button>
     </main>
   );

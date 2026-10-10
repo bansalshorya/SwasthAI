@@ -59,7 +59,7 @@ export default function Review() {
   }
 
   return (
-    <main className="app-screen review-screen">
+    <main className="app-screen review-screen workflow-framed-screen">
       <header className="top-row">
         <button
           type="button"
@@ -70,16 +70,20 @@ export default function Review() {
           <ArrowLeft />
         </button>
         <div className="header-actions">
-          <div className="step-label" aria-label={copy.reviewStepLabel}>
-            {copy.reviewStepLabel}
-          </div>
           <LanguageSwitch />
           <ThemeToggle />
         </div>
       </header>
 
-      <div className="progress-track" aria-hidden="true">
-        <span style={{ width: "85%" }} />
+      <div className="step-progress-area">
+        <div className="step-indicator-row">
+          <span className="step-label" aria-label={copy.reviewStepLabel}>
+            {copy.reviewStepLabel}
+          </span>
+        </div>
+        <div className="progress-track" aria-hidden="true">
+          <span style={{ width: "85%" }} />
+        </div>
       </div>
 
       <section className="review-heading">

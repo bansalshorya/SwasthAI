@@ -121,14 +121,18 @@ export default function SymptomIntake() {
           <ArrowLeft />
         </button>
         <div className="header-actions">
-          <div className="step-label" aria-label={copy.stepOneOfFour}>{copy.stepOneOfFour}</div>
           <LanguageSwitch />
           <ThemeToggle />
         </div>
       </header>
 
-      <div className="progress-track" aria-hidden="true">
-        <span style={{ width: "25%" }} />
+      <div className="step-progress-area">
+        <div className="step-indicator-row">
+          <span className="step-label" aria-label={copy.stepOneOfFour}>{copy.stepOneOfFour}</span>
+        </div>
+        <div className="progress-track" aria-hidden="true">
+          <span style={{ width: "25%" }} />
+        </div>
       </div>
 
       <div className="intake-workspace">

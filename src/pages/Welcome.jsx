@@ -7,6 +7,7 @@ import { ui } from "../config/uiCopy";
 import { useApp } from "../context/AppContext";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
+import StartScreeningButton from "../components/StartScreeningButton";
 
 export default function Welcome() {
   const navigate = useNavigate();
@@ -29,9 +30,14 @@ export default function Welcome() {
         <h1>{localize(APP_CONFIG.welcome.title, language)}</h1>
         <p>{localize(APP_CONFIG.welcome.subtitle, language)}</p>
       </section>
-      <button className="primary-button welcome-start" onClick={() => navigate("/onboarding")}>
-        {localize(APP_CONFIG.welcome.startLabel, language)} <ArrowRight size={18} aria-hidden="true" />
-      </button>
+      <div className="welcome-start-wrapper">
+        <StartScreeningButton
+          className="welcome-start"
+          label={localize(APP_CONFIG.welcome.startLabel, language)}
+          onClick={() => navigate("/onboarding")}
+          size="large"
+        />
+      </div>
       <section className="welcome-visual" aria-label={copy.aiHealthScreening}>
         <div className="welcome-visual-heading">
           <div className="welcome-visual-emblem"><HeartPulse size={30} aria-hidden="true" /></div>

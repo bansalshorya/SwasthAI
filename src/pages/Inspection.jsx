@@ -285,7 +285,7 @@ export default function Inspection() {
   }
 
   return (
-    <main className="app-screen photo-screen">
+    <main className="app-screen photo-screen workflow-framed-screen">
       <header className="top-row">
         <button
           type="button"
@@ -296,120 +296,143 @@ export default function Inspection() {
           <ArrowLeft />
         </button>
         <div className="header-actions">
-          <div className="step-label" aria-label={copy.stepThreeOfFour}>
-            {copy.stepThreeOfFour}
-          </div>
           <LanguageSwitch />
           <ThemeToggle />
         </div>
       </header>
 
-      <div className="progress-track" aria-hidden="true">
-        <span style={{ width: "75%" }} />
+      <div className="step-progress-area">
+        <div className="step-indicator-row">
+          <span className="step-label" aria-label={copy.stepThreeOfFour}>
+            {copy.stepThreeOfFour}
+          </span>
+        </div>
+        <div className="progress-track" aria-hidden="true">
+          <span style={{ width: "75%" }} />
+        </div>
       </div>
 
       <div className="photo-workspace">
         <div className="photo-intro-column">
-      <section className="photo-heading">
-        <div className="section-icon">
-          <Camera size={22} />
-        </div>
-        <p className="eyebrow">{copy.optionalPhoto}</p>
-        <h1>{copy.optionalPhotoTitle}</h1>
-        <p>{copy.optionalPhotoHint}</p>
-      </section>
-
-      {/* Reassurance disclaimer badge */}
-      <div className="photo-context-banner" role="note">
-        <ShieldCheck size={16} className="photo-context-banner-icon" aria-hidden="true" />
-        <span>{copy.photoContextNotice}</span>
-      </div>
-
-      {images.length > 0 && (
-        <div className="photo-strip" role="region" aria-label="Attached photos">
-          {images.map((image) => (
-            <div className="photo-thumb" key={image.id}>
-              <img src={image.dataUrl} alt="Attached thumbnail" />
-              <span className="photo-thumb-status" aria-hidden="true">
-                <Check size={13} />
-              </span>
-              <button
-                type="button"
-                className="photo-remove-btn"
-                onClick={() => removeImage(image.id)}
-                aria-label={copy.removePhoto}
-                title={copy.removePhoto}
-              >
-                <X size={13} />
-              </button>
+          <section className="photo-heading">
+            <div className="section-icon">
+              <Camera size={22} />
             </div>
-          ))}
-          <strong>
-            {images.length} / {APP_CONFIG.inspection.maximumImages}
-          </strong>
-        </div>
-      )}
+            <p className="eyebrow">{copy.optionalPhoto}</p>
+            <h1>{copy.optionalPhotoTitle}</h1>
+            <p>{copy.optionalPhotoHint}</p>
+          </section>
+
+          {/* Reassurance disclaimer banner */}
+          <div className="photo-context-banner" role="note">
+            <ShieldCheck size={16} className="photo-context-banner-icon" aria-hidden="true" />
+            <span>{copy.photoContextNotice}</span>
+          </div>
+
+          {images.length > 0 && (
+            <div className="photo-strip" role="region" aria-label="Attached photos">
+              {images.map((image) => (
+                <div className="photo-thumb" key={image.id}>
+                  <img src={image.dataUrl} alt="Attached thumbnail" />
+                  <span className="photo-thumb-status" aria-hidden="true">
+                    <Check size={13} />
+                  </span>
+                  <button
+                    type="button"
+                    className="photo-remove-btn"
+                    onClick={() => removeImage(image.id)}
+                    aria-label={copy.removePhoto}
+                    title={copy.removePhoto}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              <span className="photo-count-indicator">
+                {images.length} / {APP_CONFIG.inspection.maximumImages} {copy.optionalPhoto}
+              </span>
+            </div>
+          )}
 
           <div className="privacy-note">
             <LockKeyhole size={16} aria-hidden="true" />
-            {copy.photoPrivacy}
+            <span>{copy.photoPrivacy}</span>
           </div>
         </div>
 
-      {/* Drag & drop capable capture card */}
+        {/* Refined, balanced photo upload zone */}
         <div className="photo-capture-column">
-      <section
-        className={`capture-card ${isDragging ? "dragging" : ""}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-      >
-        <div className="capture-visual">
-          {isDragging ? <UploadCloud size={44} className="drag-icon-active" /> : <Camera size={42} />}
-        </div>
-        <h2>{localize(step.label, language)}</h2>
-        <p>{localize(step.subtext, language)}</p>
+          <section
+            className={`photo-dropzone ${isDragging ? "dragging" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+          >
+            <div className="dropzone-icon-well" aria-hidden="true">
+              {isDragging ? (
+                <UploadCloud size={32} className="drag-icon-active" />
+              ) : (
+                <Camera size={28} />
+              )}
+            </div>
 
-        <div className="photo-actions-group">
-          <button type="button" className="primary-button" onClick={startCamera}>
-            <Camera size={18} />
-            {copy.openCamera}
-          </button>
-          <button type="button" className="outline-button" onClick={gallery}>
-            <Images size={18} />
-            {copy.gallery}
-          </button>
-        </div>
+            <div className="dropzone-text">
+              <h2>{localize(step.label, language)}</h2>
+              <p>{localize(step.subtext, language)}</p>
+            </div>
 
-        <div className="drag-drop-hint" aria-hidden="true">
-          <UploadCloud size={15} />
-          <span>{copy.dragDropPhoto}</span>
-        </div>
+            <div className="photo-actions-group">
+              <button
+                type="button"
+                className="primary-button dropzone-primary-btn"
+                onClick={startCamera}
+              >
+                <Camera size={18} />
+                <span>{copy.openCamera}</span>
+              </button>
 
-        {/* Hidden accessible file input fallback */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: "none" }}
-          onChange={handleFileSelected}
-        />
-      </section>
+              <button
+                type="button"
+                className="secondary-button dropzone-secondary-btn"
+                onClick={gallery}
+              >
+                <Images size={18} />
+                <span>{copy.gallery}</span>
+              </button>
+            </div>
 
-      {error && <p className="form-error" role="alert">{error}</p>}
+            <div className="drag-drop-hint">
+              <UploadCloud size={14} aria-hidden="true" />
+              <span>{copy.dragDropPhoto}</span>
+            </div>
+
+            {/* Hidden accessible file input fallback */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handleFileSelected}
+              aria-label={localize(step.label, language)}
+            />
+          </section>
+
+          {error && <p className="form-error" role="alert">{error}</p>}
+
+          <div className="photo-footer-actions">
+            <button
+              type="button"
+              className="photo-continue-btn"
+              onClick={() => navigate("/review")}
+            >
+              <span>{images.length ? copy.reviewAndContinue : copy.skipPhotoAndReview}</span>
+            </button>
+          </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        className="text-continue"
-        onClick={() => navigate("/review")}
-      >
-        {images.length ? copy.reviewAndContinue : copy.skipPhotoAndReview}
-      </button>
     </main>
   );
 }
