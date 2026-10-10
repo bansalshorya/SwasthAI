@@ -1,7 +1,7 @@
 import { translateReport } from "../server/reportTranslation.mjs";
 import { ScreeningError } from "../server/openaiScreening.mjs";
 
-export const maxDuration = 60;
+export const maxDuration = 150;
 
 export default {
   async fetch(request) {

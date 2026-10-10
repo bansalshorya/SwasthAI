@@ -1,7 +1,7 @@
 import { checkPhoto } from "../server/screeningAssist.mjs";
 import { ScreeningError } from "../server/openaiScreening.mjs";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 export default {
   async fetch(request) {
     if (request.method !== "POST") return Response.json({ error: { code: "METHOD_NOT_ALLOWED" } }, { status: 405 });

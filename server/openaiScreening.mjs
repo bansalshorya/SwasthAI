@@ -10,6 +10,13 @@ const MAX_IMAGE_DATA_URL_LENGTH = 4_500_000;
 const MAX_TOTAL_IMAGE_LENGTH = 10_000_000;
 
 const PROVIDER_DEFAULTS = {
+  nvidia: {
+    label: "NVIDIA",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    apiStyle: "chat-completions",
+    defaultModel: "z-ai/glm-5.3-flash",
+    keyEnvironmentVariable: "NVIDIA_API_KEY",
+  },
   groq: {
     label: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
@@ -76,7 +83,9 @@ function optionOrEnvironment(options, optionName, environmentNames = []) {
 }
 
 export function resolveAIProvider(options = {}) {
-  const inferredProvider = process.env.GROQ_API_KEY
+  const inferredProvider = process.env.NVIDIA_API_KEY
+    ? "nvidia"
+    : process.env.GROQ_API_KEY
     ? "groq"
     : process.env.OPENAI_API_KEY ? "openai" : "groq";
   const providerId = String(
@@ -85,13 +94,13 @@ export function resolveAIProvider(options = {}) {
   const defaults = PROVIDER_DEFAULTS[providerId];
   if (!defaults) {
     throw new ScreeningError(
-      "AI_PROVIDER must be groq, openai, or compatible.",
+      "AI_PROVIDER must be nvidia, groq, openai, or compatible.",
       "AI_NOT_CONFIGURED",
       503,
     );
   }
 
-  const legacyModelVariable = providerId === "openai" ? "OPENAI_MODEL" : "GROQ_MODEL";
+  const legacyModelVariable = `${providerId.toUpperCase()}_MODEL`;
   const apiKey = optionOrEnvironment(
     options,
     "apiKey",
@@ -134,6 +143,18 @@ export function resolveAIProvider(options = {}) {
     model,
     baseUrl,
     apiStyle,
+  };
+}
+
+export function nvidiaChatOptions(model, maxTokens) {
+  return {
+    max_tokens: maxTokens,
+    stream: false,
+    ...(model === "z-ai/glm-5.3-flash"
+      ? { reasoning_effort: "low", chat_template_kwargs: { clear_thinking: true } }
+      : model === "google/gemma-4-31b-it"
+        ? { chat_template_kwargs: { enable_thinking: false } }
+        : {}),
   };
 }
 
@@ -263,6 +284,11 @@ export function buildProviderRequest(screening, provider) {
       content.push({ type: "image_url", image_url: { url: image.dataUrl } });
     }
 
+    // Keep image inputs together before the accompanying report text.
+    if (provider.id === "nvidia" && screening.images.length) {
+      content.push(content.shift());
+    }
+
     return {
       model: provider.model,
       messages: [
@@ -273,11 +299,13 @@ export function buildProviderRequest(screening, provider) {
         type: "json_schema",
         json_schema: {
           name: "health_screening_result",
-          strict: true,
+          ...(provider.id === "nvidia" ? {} : { strict: true }),
           schema: ANALYSIS_RESPONSE_SCHEMA,
         },
       },
-      max_completion_tokens: 4_000,
+      ...(provider.id === "nvidia"
+        ? nvidiaChatOptions(provider.model, 4_000)
+        : { max_completion_tokens: 4_000 }),
     };
   }
 
@@ -486,7 +514,7 @@ export async function analyzeScreening(rawScreening, options = {}) {
 
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
+  const timeout = setTimeout(() => controller.abort(), provider.id === "nvidia" ? 120_000 : 45_000);
 
   let response;
   try {
@@ -509,21 +537,29 @@ export async function analyzeScreening(rawScreening, options = {}) {
     clearTimeout(timeout);
   }
 
+  if (!response.ok) {
+    const status = response.status;
+    const error = status === 401 || status === 403
+      ? new ScreeningError(`The ${provider.label} API key was rejected. Check the server configuration.`, "AI_INVALID_KEY", 502)
+      : status === 400 || status === 422
+        ? new ScreeningError("The AI provider rejected the model request. Check image and structured-output support.", "AI_PROVIDER_REJECTED", 502)
+        : status === 429
+          ? new ScreeningError("The AI provider rate limit was reached. Wait before trying again.", "AI_RATE_LIMITED", 429)
+          : new ScreeningError("The AI provider could not complete the request. Please try again.", "AI_PROVIDER_ERROR", 502);
+    error.providerStatus = status;
+    if (status === 429) {
+      const retryAfter = Number(response.headers.get("retry-after"));
+      error.retryAfterSeconds = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(3600, Math.ceil(retryAfter)) : 60;
+    }
+    throw error;
+  }
+
   let payload;
   try {
     payload = await response.json();
   } catch {
     throw new ScreeningError("The AI provider returned an unreadable response.", "AI_INVALID_RESPONSE", 502);
-  }
-
-  if (!response.ok) {
-    throw new ScreeningError(
-      response.status === 401
-        ? `The ${provider.label} API key was rejected. Check the server configuration.`
-        : "The AI provider could not complete the request. Please try again.",
-      response.status === 401 ? "AI_INVALID_KEY" : "AI_PROVIDER_ERROR",
-      response.status === 429 ? 503 : 502,
-    );
   }
 
   if (provider.apiStyle === "responses" && payload?.status && payload.status !== "completed") {

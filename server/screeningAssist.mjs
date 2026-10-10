@@ -1,5 +1,5 @@
 import { FOLLOW_UP_BY_KEY, FOLLOW_UP_QUESTIONS, fallbackFollowUpIds } from "../src/config/followUpQuestions.js";
-import { resolveAIProvider, ScreeningError } from "./openaiScreening.mjs";
+import { nvidiaChatOptions, resolveAIProvider, ScreeningError } from "./openaiScreening.mjs";
 
 const PHOTO_DATA_URL = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i;
 const FOLLOW_UP_SCHEMA = {
@@ -26,11 +26,14 @@ export async function runStructuredTask({ instructions, prompt, image, schema, n
   if (image) content.push(isChat
     ? { type: "image_url", image_url: { url: image } }
     : { type: "input_image", image_url: image, detail: "high" });
+  if (provider.id === "nvidia" && image) content.push(content.shift());
   const body = isChat ? {
     model: provider.model,
     messages: [{ role: "system", content: instructions }, { role: "user", content }],
-    response_format: { type: "json_schema", json_schema: { name, strict: true, schema } },
-    max_completion_tokens: maxTokens,
+    response_format: { type: "json_schema", json_schema: { name, ...(provider.id === "nvidia" ? {} : { strict: true }), schema } },
+    ...(provider.id === "nvidia"
+      ? nvidiaChatOptions(provider.model, maxTokens)
+      : { max_completion_tokens: maxTokens }),
   } : {
     model: provider.model,
     instructions,
@@ -40,7 +43,10 @@ export async function runStructuredTask({ instructions, prompt, image, schema, n
     ...(provider.id === "openai" ? { store: false, reasoning: { effort: "low" } } : {}),
   };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (image ? 45_000 : 20_000));
+  const defaultTimeout = provider.id === "nvidia"
+    ? (image ? 90_000 : 30_000)
+    : (image ? 45_000 : 20_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? defaultTimeout);
   let response;
   try {
     response = await (options.fetchImpl || fetch)(`${provider.baseUrl}/${isChat ? "chat/completions" : "responses"}`, {

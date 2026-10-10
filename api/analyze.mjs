@@ -1,6 +1,6 @@
 import { analyzeScreening, ScreeningError } from "../server/openaiScreening.mjs";
 
-export const maxDuration = 60;
+export const maxDuration = 150;
 
 const MAX_REQUEST_BYTES = 4_000_000;
 

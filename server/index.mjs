@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { analyzeScreening, resolveAIProvider, ScreeningError } from "./openaiScreening.mjs";
 import { checkPhoto, suggestFollowUps } from "./screeningAssist.mjs";
 import { translateReport } from "./reportTranslation.mjs";
+import { searchCareResources } from "./careResources.mjs";
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = path.dirname(SERVER_DIR);
@@ -48,9 +49,9 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, maxBytes = MAX_REQUEST_BYTES) {
   const declaredLength = Number(request.headers["content-length"] || 0);
-  if (declaredLength > MAX_REQUEST_BYTES) {
+  if (declaredLength > maxBytes) {
     throw new ScreeningError("The screening request is too large.", "REQUEST_TOO_LARGE", 413);
   }
 
@@ -58,7 +59,7 @@ async function readJsonBody(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > MAX_REQUEST_BYTES) {
+    if (size > maxBytes) {
       throw new ScreeningError("The screening request is too large.", "REQUEST_TOO_LARGE", 413);
     }
     chunks.push(chunk);
@@ -93,17 +94,19 @@ async function handleApi(request, response, pathname) {
     return true;
   }
 
-  if (!["/api/analyze", "/api/follow-up", "/api/photo-check", "/api/translate-report"].includes(pathname)) return false;
+  if (!["/api/analyze", "/api/follow-up", "/api/photo-check", "/api/translate-report", "/api/care-resources"].includes(pathname)) return false;
   if (request.method !== "POST") {
     sendJson(response, 405, { error: { code: "METHOD_NOT_ALLOWED", message: "Use POST for this endpoint." } });
     return true;
   }
 
-  const body = await readJsonBody(request);
+  const body = await readJsonBody(request, pathname === "/api/care-resources" ? 2_048 : MAX_REQUEST_BYTES);
   const result = pathname === "/api/follow-up"
     ? await suggestFollowUps(body)
     : pathname === "/api/photo-check"
       ? await checkPhoto(body)
+      : pathname === "/api/care-resources"
+        ? await searchCareResources(body)
       : pathname === "/api/translate-report"
         ? await translateReport(body)
       : await analyzeScreening(body.screening);

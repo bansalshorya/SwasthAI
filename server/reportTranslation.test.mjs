@@ -57,6 +57,23 @@ test("report translation keeps medical risk and status fields unchanged", async 
   assert.equal(source.result.summary, "Seek care in 24 hours.");
 });
 
+test("NVIDIA translates a complete report using the screening key", async () => {
+  const items = [{ id: "summary", text: "Seek help in 24 hours." }];
+  const response = await translateReport({ sourceLanguage: "en", targetLanguage: "hi", items }, {
+    provider: "nvidia", apiKey: "test-key",
+    fetchImpl: async (url, request) => {
+      assert.equal(url, "https://integrate.api.nvidia.com/v1/chat/completions");
+      const body = JSON.parse(request.body);
+      assert.equal(body.max_tokens, 8_000);
+      assert.equal(body.response_format.type, "json_schema");
+      assert.equal(body.chat_template_kwargs.clear_thinking, true);
+      assert.equal(body.reasoning_effort, "low");
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ items: [{ id: "summary", text: "24 घंटे में मदद लें।" }] }) } }] });
+    },
+  });
+  assert.equal(response.items[0].text, "24 घंटे में मदद लें।");
+});
+
 test("report translation rejects missing items or changed numbers", async () => {
   const items = [{ id: "summary", text: "Seek help in 24 hours." }];
   await assert.rejects(translateReport({ sourceLanguage: "en", targetLanguage: "hi", items }, {

@@ -99,6 +99,13 @@ test("resolves the Groq provider defaults", () => {
   assert.equal(provider.model, "qwen/qwen3.8-27b");
 });
 
+test("resolves NVIDIA's hosted multimodal provider defaults", () => {
+  const provider = resolveAIProvider({ provider: "nvidia", apiKey: "test-key" });
+  assert.equal(provider.baseUrl, "https://integrate.api.nvidia.com/v1");
+  assert.equal(provider.apiStyle, "chat-completions");
+  assert.equal(provider.model, "z-ai/glm-5.3-flash");
+});
+
 test("supports a custom OpenAI-compatible provider", () => {
   const provider = resolveAIProvider({
     provider: "compatible",
@@ -129,6 +136,26 @@ test("builds a strict multimodal Groq chat-completions request", () => {
     request.messages[1].content.map((item) => item.type),
     ["text", "image_url", "image_url"],
   );
+});
+
+test("builds NVIDIA's image-first JSON-schema request", () => {
+  const provider = resolveAIProvider({ provider: "nvidia", apiKey: "test-key" });
+  const request = buildProviderRequest(screeningWithImages(), provider);
+  assert.equal(request.max_tokens, 4_000);
+  assert.equal(request.max_completion_tokens, undefined);
+  assert.equal(request.chat_template_kwargs.clear_thinking, true);
+  assert.equal(request.reasoning_effort, "low");
+  assert.equal(request.response_format.type, "json_schema");
+  assert.equal(request.response_format.json_schema.strict, undefined);
+  assert.deepEqual(request.messages[1].content.map((item) => item.type), ["image_url", "image_url", "text"]);
+});
+
+test("NVIDIA screening reports unsupported schema requests without leaking provider data", async () => {
+  await assert.rejects(analyzeScreening(screening(), {
+    provider: "nvidia", apiKey: "test-key",
+    fetchImpl: async () => new Response("Private provider diagnostics", { status: 422 }),
+  }), (error) => error instanceof ScreeningError && error.code === "AI_PROVIDER_REJECTED"
+    && error.providerStatus === 422 && !error.message.includes("Private provider diagnostics"));
 });
 
 test("builds a private structured OpenAI Responses request", () => {

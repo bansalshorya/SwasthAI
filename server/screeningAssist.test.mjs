@@ -33,6 +33,23 @@ test("photo precheck sends the image and rejects unsupported uploads", async () 
     (error) => error instanceof ScreeningError && error.code === "INVALID_SCREENING");
 });
 
+test("NVIDIA photo precheck uses the hosted chat request format", async () => {
+  const image = `data:image/png;base64,${Buffer.from("image").toString("base64")}`;
+  const output = await checkPhoto({ symptoms: "Rash on arm", language: "en", image }, {
+    provider: "nvidia", apiKey: "test-key",
+    fetchImpl: async (url, request) => {
+      assert.equal(url, "https://integrate.api.nvidia.com/v1/chat/completions");
+      const body = JSON.parse(request.body);
+      assert.deepEqual(body.messages[1].content.map((item) => item.type), ["image_url", "text"]);
+      assert.equal(body.max_tokens, 500);
+      assert.equal(body.chat_template_kwargs.clear_thinking, true);
+      assert.equal(body.reasoning_effort, "low");
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ status: "relevant", explanation: "The visible concern matches." }) } }] });
+    },
+  });
+  assert.equal(output.status, "relevant");
+});
+
 test("caregiver, medicine, allergy, and adaptive answers reach the screening prompt", async () => {
   const screening = validateScreening({
     language: "en", symptoms: "My child has an itchy rash", images: [],

@@ -20,6 +20,7 @@ SwasthAI is a mobile-first Hindi/English web app with a Capacitor Android projec
 | Progress checks | Start a linked repeat screening, compare reported severity/progression, and view saved photo thumbnails side by side. The trend is based on answers, not an automated diagnosis from photos. |
 | Clinician report | A print-ready report includes symptoms, answers, photo context, observations, red flags, and next steps. Use the browser's **Print / Save PDF** action. |
 | Spoken results | Reads the summary, warning signs, and recommended professional-care step aloud when device speech is available. |
+| Find care nearby | After a non-urgent result, search public hospital or clinic listings by city or six-digit PIN using TinyFish Search. The search sends only the location and selected care type. Listings and availability must be confirmed directly. |
 | Safety routing and history | Local red-flag checks can bypass AI; completed reports are searchable in device-local history. |
 
 ## Quick start
@@ -30,7 +31,7 @@ Requirements: Node.js, npm, and a key for a multimodal model that supports image
 npm install
 ```
 
-Copy `.env.example` to `.env` and replace `GROQ_API_KEY` with your own key. The example value is a placeholder. Then start both the frontend and API:
+Copy `.env.example` to `.env` and replace `NVIDIA_API_KEY` with your own NVIDIA Build key. The example value is a placeholder. Then start both the frontend and API:
 
 ```bash
 npm run dev
@@ -47,7 +48,9 @@ Open `http://localhost:5173`. Check `http://localhost:5173/api/health`; `"aiConf
 | `npm run build` | Build the web app into `dist/`. |
 | `npm start` | Serve the built app and API from one Node process. |
 
-The API key stays in the server environment; never use a `VITE_*` variable for a secret or commit `.env`. Groq is the default provider. The provider, model, API style, and compatible-provider URL can be changed through `.env`. To give translation its own key and quota, set `TRANSLATION_API_KEY` on the server. You can also set `TRANSLATION_PROVIDER`, `TRANSLATION_MODEL`, `TRANSLATION_BASE_URL`, and `TRANSLATION_API_STYLE` if the translation provider differs from screening. If you set any `TRANSLATION_*` variable, a translation key is required. Without these settings, translation uses the screening provider.
+The API key stays in the server environment; never use a `VITE_*` variable for a secret or commit `.env`. NVIDIA is the recommended provider. Set `AI_PROVIDER=nvidia`, `NVIDIA_API_KEY`, and `AI_MODEL=z-ai/glm-5.3-flash` in an existing `.env`; remove the old `TRANSLATION_*` settings to have report translation reuse the NVIDIA key. To give translation its own key and quota, set `TRANSLATION_API_KEY` and, if needed, `TRANSLATION_PROVIDER`, `TRANSLATION_MODEL`, `TRANSLATION_BASE_URL`, and `TRANSLATION_API_STYLE`. If you set any `TRANSLATION_*` variable, a translation key is required. Without these settings, translation uses the screening provider. Keep `TINYFISH_API_KEY` for the separate care search.
+
+To enable **Find care nearby**, set `TINYFISH_API_KEY` on the server or in your deployment's environment settings. The browser never receives the key. Search starts only when the user submits a city or PIN and a fixed care category; symptoms, photos, and the screening report are not sent to TinyFish. Without the key, the result page still works and the care finder explains that search is unavailable.
 
 Each screening may use one call for adaptive questions, one per checked photo, one for final analysis, and one to prepare the report in the other language. The translated version is saved with that screening on the device, so later switches and history views do not call the translation API again. These calls count toward their respective provider quotas. `VITE_ENABLE_DEMO_AI=true` replaces **final analysis** with a demonstration result; adaptive questions and photo checks may still call the API, so it is not a fully offline mode.
 
@@ -56,12 +59,13 @@ Each screening may use one call for adaptive questions, one per checked photo, o
 Deploy the repository as a Vite project and set these **Environment Variables** in Vercel Project Settings for Production (and Preview if needed):
 
 ```env
-AI_PROVIDER=groq
-GROQ_API_KEY=your_own_groq_key
-AI_MODEL=qwen/qwen3.8-27b
+AI_PROVIDER=nvidia
+NVIDIA_API_KEY=your_own_nvidia_key
+AI_MODEL=z-ai/glm-5.3-flash
 AI_API_STYLE=chat-completions
-# Optional: a separate key for translating reports
-TRANSLATION_API_KEY=your_translation_only_key
+# Optional: a separate NVIDIA key for translating reports
+# TRANSLATION_PROVIDER=nvidia
+# TRANSLATION_API_KEY=your_translation_only_nvidia_key
 ```
 
 Redeploy after changing variables. Open `https://YOUR-DEPLOYMENT/api/health` and confirm `"aiConfigured": true`. The endpoint does not return the key. See `.env.example` for OpenAI or another compatible provider. Use a model that supports **both images and structured JSON output**.
@@ -89,7 +93,7 @@ SwasthAI addresses the gap between **“I feel unwell”** and **“I know how u
 4. Optionally take or upload up to three photos. The app compresses them to WebP; `/api/photo-check` checks relevance and quality, with local darkness/blur checks if the remote check fails. A warning does not silently discard a photo.
 5. Add optional medicine and allergy context and review the entered information.
 6. `/api/analyze` validates the request server-side and asks the configured model for a structured screening result. It checks whether each photo actually supports the description; mismatched or unclear photos do not become image evidence and lower confidence.
-7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. When the result page opens, `/api/translate-report` prepares the other language and stores it with the screening. Switching between Hindi and English then uses the saved versions without another API call. A short provider rate limit is retried once; longer limits temporarily disable new translation attempts. If translation fails, the app keeps the original language and can retry when the user switches languages. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
+7. Review urgency, possible conditions, supporting evidence, warning signs, and a suggested professional-care step. When the result page opens, `/api/translate-report` prepares the other language and stores it with the screening. Switching between Hindi and English then uses the saved versions without another API call. A short provider rate limit is retried once; longer limits temporarily disable new translation attempts. If translation fails, the app keeps the original language and can retry when the user switches languages. For non-urgent results, the user can search for public care listings by city or PIN through TinyFish Search; these are unverified web listings, not a change to triage advice. Read key results aloud, share a text summary, or use the browser print dialog to save the clinician report as PDF.
 8. If appropriate, start a linked screening later. The app compares reported severity/progression and displays any saved photo thumbnails side by side.
 
 ### API endpoints
@@ -100,7 +104,8 @@ SwasthAI addresses the gap between **“I feel unwell”** and **“I know how u
 | `POST /api/follow-up` | Selects relevant question IDs from the predefined question bank. |
 | `POST /api/photo-check` | Checks one image against the reported symptoms for relevance and usability. |
 | `POST /api/analyze` | Produces the final structured screening response. |
-| `POST /api/translate-report` | Translates user-facing report text while preserving clinical risk and status fields. Requires a configured AI provider; the first switch uses an additional provider call. |
+| `POST /api/translate-report` | Translates user-facing report text while preserving clinical risk and status fields. Requires a configured AI provider; one call prepares the other language when a result opens. |
+| `POST /api/care-resources` | Uses a server-side TinyFish key to find public care listings from a city or PIN and a fixed care type. Sends no screening details. |
 
 Local development uses the Node server in `server/`; Vercel uses matching functions in `api/`. Provider calls stay on the server. The model must support the configured JSON Schema format.
 
@@ -118,9 +123,9 @@ Local development uses the Node server in `server/`; Vercel uses matching functi
 | **Native/mobile bridge** | Capacitor Core, Capacitor Camera, Capacitor Android, Capacitor Community Text-to-Speech | Android-ready access to native camera and speech capabilities. |
 | **PWA/mobile web** | Web App Manifest, responsive CSS, route-level lazy loading | Install-like presentation and smaller initial JavaScript delivery. A service worker is not yet included, so full offline application caching is not claimed. |
 | **Client state and storage** | React Context and Hooks, `sessionStorage`, versioned `localStorage` | Resumable active screening, local history, theme persistence, legacy-data migration, and quota-safe image removal. |
-| **AI integration** | Groq/OpenAI-compatible APIs, image inputs, strict JSON Schema Structured Outputs, configurable provider and model | Combines symptom text, contextual answers, and optional images while enforcing predictable output fields. |
+| **AI integration** | NVIDIA and other OpenAI-compatible APIs, image inputs, JSON Schema structured outputs, configurable provider and model | Combines symptom text, contextual answers, and optional images while enforcing predictable output fields. |
 | **Safety intelligence** | Hindi/English red-flag regex engine, response normalizer, medical translation dictionaries | Emergency bypass, uncertainty-aware results, bilingual medical terms, and conservative guidance. |
-| **Backend and database** | Dependency-free Node HTTP server and Vercel functions; no cloud database | Handles the five API endpoints, protects provider keys, validates requests, and normalizes provider errors. Screening history and cached translations remain on the user's device. |
+| **Backend and database** | Dependency-free Node HTTP server and Vercel functions; no cloud database | Handles six API endpoints, protects provider keys, validates requests, and normalizes provider errors. Screening history and cached translations remain on the user's device. |
 
 ### Logical architecture
 
@@ -183,7 +188,7 @@ flowchart LR
 
 ### What is ready versus what must be hardened
 
-**Implemented now:** bilingual voice/text intake; local and server-side emergency routing; AI-selected questions with local fallback; caregiver, age-group, medicine, and allergy context; optional guided photos with precheck and final consistency checks; structured Groq/OpenAI-compatible analysis; linked repeat screenings; local history; spoken results; print-to-PDF clinician view; responsive UI; and Capacitor configuration.
+**Implemented now:** bilingual voice/text intake; local and server-side emergency routing; AI-selected questions with local fallback; caregiver, age-group, medicine, and allergy context; optional guided photos with precheck and final consistency checks; structured NVIDIA/OpenAI-compatible analysis; linked repeat screenings; local history; spoken results; print-to-PDF clinician view; responsive UI; and Capacitor configuration.
 
 **Required before a field pilot:** deploy the API behind authentication and rate limits, evaluate the selected model on clinician-reviewed cases, add observability without logging raw health content, run security/privacy reviews, validate translations and red-flag coverage with clinicians, test on entry-level Android devices and weak networks, and obtain ethics/regulatory approval appropriate to the deployment scope.
 

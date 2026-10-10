@@ -35,6 +35,7 @@ import { compareScreenings } from "../services/progress";
 import { applyReportTranslations, reportTextEntries, requestReportTranslation, validateReportTranslations } from "../services/resultTranslation";
 import { stopSpeaking } from "../services/speech";
 import DoctorReport from "../components/DoctorReport";
+import CareFinder from "../components/CareFinder";
 import LanguageSwitch from "../components/LanguageSwitch";
 import ThemeToggle from "../components/ThemeToggle";
 
@@ -701,6 +702,8 @@ export default function Result() {
               <p>{result.doctorRecommendation?.timeframe}</p>
             </div>
           </section>
+
+          {!isHighRisk && <CareFinder language={language} copy={copy} />}
 
           {/* Recommendations & Self-Care (Collapsible) */}
           <CollapsibleCard
